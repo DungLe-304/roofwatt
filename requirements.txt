@@ -7,3 +7,5 @@ python-dotenv
 pandas
 pillow
 pytest
+pydantic
+dotenv
