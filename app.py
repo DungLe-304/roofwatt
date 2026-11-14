@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 import streamlit.components.v1 as components
 import streamlit as st
@@ -8,7 +9,10 @@ from agent.agent import createRoofWattAgent
 from agent.results import roofImages
 from config import loadSettings
 
-st.set_page_config(page_title = "RoofWatt", page_icon = "assets/rooftwatt_icon.png", layout = "wide")
+appRoot = Path(__file__).resolve().parent
+pageIconPath = appRoot / "assets" / "Star.png"
+
+st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide")
 hotkeys.activate([hotkeys.hk("scroll_bottom", "End", ctrl = True, prevent_default = True, help = "Scroll to the latest message")])
 
 st.title("RoofWatt")
