@@ -10,7 +10,7 @@ from agent.results import roofImages
 from config import loadSettings
 
 appRoot = Path(__file__).resolve().parent
-pageIconPath = appRoot / "assets" / "Star.png"
+pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
 
 st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide")
 hotkeys.activate([hotkeys.hk("scroll_bottom", "End", ctrl = True, prevent_default = True, help = "Scroll to the latest message")])

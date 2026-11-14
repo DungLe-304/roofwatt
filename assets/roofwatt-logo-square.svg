@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>RoofWatt app logo</title>
+  <rect width="1024" height="1024" rx="224" ry="224" fill="#FFFFFF"/>
+  <!-- ===== Mark ===== -->
+  <g transform="translate(127,37) scale(2.14)">
+    <!-- Rising sun behind the building -->
+    <g stroke="#FF9F1C" stroke-width="16" stroke-linecap="round">
+      <line x1="200" y1="78"  x2="200" y2="40"/>
+      <line x1="130" y1="98"  x2="108" y2="68"/>
+      <line x1="270" y1="98"  x2="292" y2="68"/>
+      <line x1="84"  y1="150" x2="50"  y2="134"/>
+      <line x1="316" y1="150" x2="350" y2="134"/>
+    </g>
+    <circle cx="200" cy="200" r="96" fill="#FFB627"/>
+
+    <!-- Tilted solar panel array on the roof -->
+    <g fill="#2F80ED" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round">
+      <path d="M44 236 L106 236 L120 176 L58 176 Z"/>
+      <path d="M112 236 L174 236 L188 176 L126 176 Z"/>
+      <path d="M180 236 L242 236 L256 176 L194 176 Z"/>
+      <path d="M248 236 L310 236 L324 176 L262 176 Z"/>
+    </g>
+    <!-- panel cell lines -->
+    <g stroke="#FFFFFF" stroke-width="3" opacity="0.85">
+      <line x1="51" y1="206" x2="113" y2="206"/>
+      <line x1="119" y1="206" x2="181" y2="206"/>
+      <line x1="187" y1="206" x2="249" y2="206"/>
+      <line x1="255" y1="206" x2="317" y2="206"/>
+      <line x1="82" y1="176" x2="68" y2="236"/>
+      <line x1="150" y1="176" x2="136" y2="236"/>
+      <line x1="218" y1="176" x2="204" y2="236"/>
+      <line x1="286" y1="176" x2="272" y2="236"/>
+    </g>
+
+    <!-- Commercial building (flat roof) -->
+    <rect x="30" y="242" width="300" height="146" rx="12" fill="#13294B"/>
+    <!-- roof parapet -->
+    <rect x="22" y="238" width="316" height="16" rx="8" fill="#13294B"/>
+    <!-- windows -->
+    <g fill="#8DB8F2">
+      <rect x="58"  y="276" width="40" height="28" rx="5"/>
+      <rect x="118" y="276" width="40" height="28" rx="5"/>
+      <rect x="202" y="276" width="40" height="28" rx="5"/>
+      <rect x="262" y="276" width="40" height="28" rx="5"/>
+      <rect x="58"  y="324" width="40" height="28" rx="5"/>
+      <rect x="262" y="324" width="40" height="28" rx="5"/>
+    </g>
+    <!-- entrance with lightning bolt -->
+    <rect x="152" y="318" width="56" height="70" rx="8" fill="#FF9F1C"/>
+    <path d="M184 328 L166 358 L178 358 L172 380 L194 348 L182 348 L190 328 Z" fill="#13294B"/>
+    <!-- ground line -->
+    <rect x="0" y="392" width="360" height="12" rx="6" fill="#13294B" opacity="0.15"/>
+  </g>
+
+</svg>
