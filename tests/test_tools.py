@@ -157,3 +157,16 @@ def test_rank_unsupported_city_returns_error(monkeypatch):
 		raise ValueError("Supported cities: Houston and Los Angeles.")
 	monkeypatch.setattr(tools, "_allMatches", boom)
 	assert "Supported cities" in tools.rankBuildings("Boston")["error"]
+
+
+def test_get_roof_image_returns_path_or_error(fakes, monkeypatch, tmp_path):
+	image = tmp_path / "42.jpeg"
+	monkeypatch.setattr(tools, "get_roof_image", lambda building_id, lat, lon: image)
+	assert tools.getRoofImage("42") == {"buildingId": "42", "imagePath": str(image)}
+
+	def rejected(building_id, lat, lon):
+		raise RuntimeError("Vexcel rejected the token (HTTP 401)")
+	monkeypatch.setattr(tools, "get_roof_image", rejected)
+	assert "401" in tools.getRoofImage("42")["error"]
+	fakes["building"] = make_building(lat=None)
+	assert "coordinates" in tools.getRoofImage("42")["error"]

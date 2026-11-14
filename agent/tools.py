@@ -14,6 +14,7 @@ import config
 from data.costar_client import CostarClient
 from data.costar_client import getBuilding as getBuildingData
 from data.costar_client import searchBuildings as searchBuildingsData
+from data.imagery import get_roof_image
 from models.finance import compute_financials, cost_per_watt_for_size
 from models.roof import estimate_roof
 from models.solar import estimate_solar
@@ -167,4 +168,16 @@ def rankBuildings(city: str, propertyType: str = "Office", minSqft: float = 0, l
 	}
 
 
-roofWattTools = [searchBuildingsData, getBuildingData, analyzeRoof, estimateSolar, computeFinancials, rankBuildings]
+def getRoofImage(buildingId: str) -> dict:
+	"""Fetch (or reuse from cache) a Vexcel aerial image centered on one building, for display in the UI.
+
+	Returns imagePath (a local file path, not something to describe or analyze), or an error.
+	"""
+	def compute(building):
+		if building.lat is None or building.lon is None:
+			raise ValueError(f"{building.buildingId}: coordinates are missing, so no aerial image can be fetched")
+		return {"buildingId": building.buildingId, "imagePath": str(get_roof_image(building.buildingId, building.lat, building.lon))}
+	return _safe(buildingId, compute)
+
+
+roofWattTools = [searchBuildingsData, getBuildingData, analyzeRoof, estimateSolar, computeFinancials, rankBuildings, getRoofImage]

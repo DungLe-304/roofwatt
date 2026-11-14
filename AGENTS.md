@@ -140,11 +140,15 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 - Cleanup: `Settings` trimmed to `agentMode`/`modelName` (keys read from real env names); `dotenv` package dropped,
   `requests` added to `pyproject.toml`, `socksio` to `requirements.txt`, `uv.lock` updated; README (Git LFS, uv,
   keys, tests); `app.py` icon path fixed + duplicate import removed; stub pointers -> `docs/PROJECT_PLAN.md`. 47 tests.
+- Guard: `tests/test_agent.py` fails if the system prompt names a tool missing from `roofWattTools` (prompt is now
+  module-level `agent.agent.systemPrompt`). Verified it catches the `34ad05e` regression.
+- Plan B: `data/cache.py` (file cache `cache/<ns>/<key>.<ext>`), `data/imagery.py` `get_roof_image` (Vexcel
+  ExtractOrthoImages, cached, clear errors), tool `getRoofImage`, `tools/prefetch_images.py --top 20`. 55 tests.
 
 ## Modified Files
-- Latest session: `agent/tools.py` (restored + size-based cost), `models/finance.py`, `config.py`, `app.py`,
-  `README.md`, `data/imagery.py`, `data/cache.py`, `requirements.txt`, `pyproject.toml`, `uv.lock`,
-  `tests/test_finance.py`, `tests/test_tools.py`, `tests/test_config.py`, `AGENTS.md`
+- Latest session: `agent/agent.py` (module-level prompt, getRoofImage rule), `agent/tools.py` (getRoofImage),
+  `data/cache.py`, `data/imagery.py`, `tools/prefetch_images.py` (new), `tests/test_agent.py`, `tests/test_imagery.py`
+  (new), `tests/test_tools.py`, `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
@@ -158,8 +162,9 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 - **Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen`, exhausted 2026-11-14 ~15:45 ET (resets
   ~03:00 ET Nov 15).** One demo query uses ~3-12 requests. Demo is blocked until billing is enabled or quota resets.
 - `app.py` (Khoa) is a chat UI only: no tool trace, map, ranked table or detail panel yet (plan §6 step 9).
-- `data/imagery.py`, `data/cache.py` are still stubs; Vexcel plan awaiting approval (token in `VEXCEL_API_KEY`;
-  endpoint `ExtractOrthoImages` per Vexcel blog, host api.gic.org vs api.vexcelgroup.com unconfirmed).
+- **Vexcel token rejected**: `VEXCEL_API_KEY` (156 chars, not a JWT) gets HTTP 401 from api.gic.org and
+  api.vexcelgroup.com (`/v2` path → 500). Need a fresh token (login at https://api.vexcelgroup.com/v2/) and the right
+  host/collection; then run `python tools/prefetch_images.py`. Until then `getRoofImage` returns an error.
 - CoStar extract has no roof footprint (tier 1 uses sqft / stories).
 - `COST_PER_WATT_BY_SIZE_KW` uses national medians; Texas prices are not broken out by LBNL.
 - Repo is PUBLIC and now contains the CoStar extract (`commercial-properties.csv`, `data/*.jsonl`): check
@@ -167,6 +172,6 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 
 ## Immediate Next Steps
 1. Gemini quota: enable billing on the Google AI project (or wait for reset) before any demo run.
-2. Vexcel imagery + cache (plan B, pending approval).
+2. Fresh Vexcel token → confirm host → `tools/prefetch_images.py`; show `imagePath` in `app.py`.
 3. Streamlit UI: tool trace, ranked table, map, detail panel on top of Khoa's chat.
 4. ITC `caveats` in finance tool output (pending decision).
