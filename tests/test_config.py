@@ -22,7 +22,14 @@ def test_load_settings_reads_repo_env(tmp_path, monkeypatch):
 
 def test_settings_only_holds_fields_the_app_uses():
 	# API keys are read from their real env names (NLR_API_KEY, GOOGLE_API_KEY, VEXCEL_API_KEY), not Settings.
-	assert set(config.Settings.model_fields) == {"agentMode", "modelName"}
+	assert set(config.Settings.model_fields) == {
+		"agentMode",
+		"modelName",
+		"agentContextMessages",  # app.py: chat history sent to the agent
+		"agentContextCharacters",
+		"agentMaxOutputTokens",  # agent/agent.py: Gemini token/retry limits
+		"agentMaxRetries",
+	}
 
 
 def test_default_model_is_gemini():

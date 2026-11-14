@@ -6,11 +6,13 @@ import streamlit as st
 import streamlit_hotkeys as hotkeys
 
 from agent.agent import createRoofWattAgent
-from agent.results import roofImages
+from agent.results import rankingResult, roofImages
 from config import loadSettings
+from data.costar_client import CostarClient
+from ui.ranking import addCoordinates, showRanking
 
 appRoot = Path(__file__).resolve().parent
-pageIconPath = appRoot / "assets" / "Star.png"
+pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
 
 st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "expanded")
 
@@ -129,6 +131,8 @@ if __name__ == "__main__":
 	for message in st.session_state.chatMessages:
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
+			if message.get("ranking"):
+				showRanking(message["ranking"])
 			showRoofImages(message.get("images", []))
 
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
@@ -149,10 +153,15 @@ if __name__ == "__main__":
 
 					responseText = extractText(result["messages"][-1].content)
 					images = roofImages(result["messages"])
+					ranking = rankingResult(result["messages"])
+					if ranking:
+						ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
 					st.markdown(responseText)
+					if ranking:
+						showRanking(ranking)
 					showRoofImages(images)
 
-					st.session_state.chatMessages.append({"role": "assistant", "content": responseText})
+					st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking})
 				except Exception as error:
 					errorMessage = str(error)
 					if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:

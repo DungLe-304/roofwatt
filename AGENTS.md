@@ -36,6 +36,7 @@ agent/tools.py      tool wrappers exposed to the agent
 data/costar_client.py  CoStar building search/details
 data/imagery.py     Vexcel aerial imagery (Matterport stretch)
 data/cache.py       response cache
+ui/ranking.py       ranked table + pydeck map for a rankBuildings result (rendered in app.py)
 models/schemas.py   Building, RoofResult, SolarResult, FinanceResult dataclasses
 models/roof.py      usable roof area (tier 1: footprint × USABLE_FACTOR)
 models/solar.py     PVWatts client (cache + 429 handling)
@@ -151,23 +152,38 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 - `app.py` shows roof images: `agent/results.py` `roofImages(messages)` reads successful `getRoofImage` results;
   images render under the reply and stay in chat history (stored per message, not sent to the agent).
   `tests/test_app.py` drives the app with a fake agent (no Gemini quota). 60 tests; server health OK.
+- Khoa: `bea18d2` chat scrollToBottom; `642af2b` token limits (`agent/agent.py`, `app.py`, `config.py`).
+- Assets cleanup: `assets/` now holds only `roofwatt-logo.svg`, `roofwatt-logo-square.svg`,
+  `roofwatt-overview-concept.png` (poster concept). Old `RoofWatt solar power icon.png` and the draft
+  icon/overview files and Khoa's unused `Star.png`/`SolarPanel.png` were deleted. `app.py` `page_icon` -> `assets/roofwatt-logo-square.svg` (was a missing PNG).
+- Tests green again (60): `streamlit-hotkeys` installed in `.venv`; `test_config` lists Khoa's 4 new `agent*`
+  Settings fields; `app.py` stores `images` on assistant messages again (merge `9b99b6c` dropped it, so roof
+  images vanished from history after the next turn).
+
+- Ranked table + map (`ui/ranking.py`, `agent/results.py` `rankingResult`): `app.py` shows the last successful
+  `rankBuildings` result under the reply (caption with scope/exclusions/unsourced usable factor, dark CARTO pydeck
+  map with numbered markers, rank 1 green, tooltips; table with units in headers) and keeps it in chat history.
+  Coordinates are looked up from CoStar in the UI (one pass), not added to the tool output, to save Gemini tokens.
+  Map view: own `fitView` (deck.gl world = 512 px at zoom 0; `pdk.data_utils.compute_view` cropped rank 6).
+  Verified in headless Chrome with the real Houston top 10. `pandas`/`pydeck` added to `pyproject.toml`. 68 tests.
 
 ## Modified Files
-- Latest session: `app.py` (roof images), `agent/results.py` (new), `tests/test_results.py`, `tests/test_app.py` (new),
-  `AGENTS.md`
+- Latest session: `ui/` (new), `agent/results.py`, `app.py`, `tests/test_ranking.py` (new), `tests/test_results.py`,
+  `tests/test_app.py`, `pyproject.toml`, `uv.lock`, `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
   EIA rate is an all-in average (incl. demand charges); eGRID uses total-output rate, not marginal.
 - PVWatts cache lives in `models/solar.py`; `data/cache.py` (CoStar/Vexcel) may absorb it later.
-- `requirements.txt` is unpinned; `pydeck`/`pandas`/`pillow` are listed there but not yet used or in `pyproject.toml`.
+- `requirements.txt` is unpinned; `pillow` is listed there but not used or in `pyproject.toml`.
 - `USABLE_FACTOR = 0.6` is an unsourced assumption (plan §4 says label it as such in the UI).
 - MASTER.md suggests Google Fonts (Fira); not used, to keep the demo offline-safe.
 - Proposal letter omits the ITC caveat (placed in service by 2027-12-31). Pending decision: return a `caveats`
   list from the finance tools and require it in pitches.
 - **Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen`, exhausted 2026-11-14 ~15:45 ET (resets
   ~03:00 ET Nov 15).** One demo query uses ~3-12 requests. Demo is blocked until billing is enabled or quota resets.
-- `app.py` (Khoa) is a chat UI + roof images: no tool trace, map or ranked table yet (plan §6 step 9).
+- `app.py` has chat, ranked map + table and roof images; no tool trace or detail panel yet (plan §6 step 9).
+  Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background.
 - Roof image frame uses the tier-1 footprint (sqft / stories), which undershoots wide low buildings (e.g. 362982
   spills past the frame edges). `cache/` is gitignored: run `python tools/prefetch_images.py` on the demo machine.
 - CoStar extract has no roof footprint (tier 1 uses sqft / stories).
@@ -178,5 +194,5 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 ## Immediate Next Steps
 1. Gemini quota: enable billing on the Google AI project (or wait for reset) before any demo run.
 2. Run `python tools/prefetch_images.py` on the demo machine; live demo once Gemini quota resets.
-3. Streamlit UI: tool trace, ranked table, map, detail panel on top of Khoa's chat.
+3. Streamlit UI: tool trace and detail panel (click a ranked row → roof image + numbers with sources).
 4. ITC `caveats` in finance tool output (pending decision).

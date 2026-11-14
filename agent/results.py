@@ -1,4 +1,4 @@
-"""Read tool results back out of an agent run's message history (for the UI)."""
+"""Read tool results (roof images, building ranking) back out of an agent run's message history (for the UI)."""
 
 import json
 from pathlib import Path
@@ -19,3 +19,17 @@ def roofImages(messages) -> list[tuple[str, str]]:
 		if path and Path(path).is_file() and image not in images:
 			images.append(image)
 	return images
+
+
+def rankingResult(messages) -> dict | None:
+	"""The result of the last successful rankBuildings call that ranked at least one building, else None."""
+	for message in reversed(messages):
+		if getattr(message, "type", None) != "tool" or getattr(message, "name", None) != "rankBuildings":
+			continue
+		try:
+			result = json.loads(message.content)
+		except (TypeError, ValueError):
+			continue
+		if isinstance(result, dict) and result.get("ranked"):
+			return result
+	return None
