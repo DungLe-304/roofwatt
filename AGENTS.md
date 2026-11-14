@@ -121,7 +121,7 @@ Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkp
 
 ## Modified Files
 - `models/roof.py`, `tests/test_roof.py` (new), `.env.example` (restored), `config.py` (load_dotenv + sourced values, merged with Khoa's `Settings`), `models/solar.py` +
-  `tests/test_solar.py` (`NLR_API_KEY`), `CLAUDE.md` (restored `@AGENTS.md`), `AGENTS.md`
+  `tests/test_solar.py` (`NLR_API_KEY`), `CLAUDE.md` (restored `@AGENTS.md`), `tests/test_config.py` (new), `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
@@ -135,8 +135,11 @@ Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkp
 - `simple_payback_yr` can be `math.inf` → `json.dumps` emits non-standard `Infinity`; convert before caching/tool output.
 - `agent/tools.py` `compute_financials` wrapper must inject the `config.py` values (plan §5 signature differs).
 - MASTER.md suggests Google Fonts (Fira); not used, to keep the demo offline-safe.
-- `agent/agent.py` fails on import: `deepagents` 0.7.38 has no `Agent`. Model id `google_genai:gemini-4-hydrogen`
-  conflicts with `Settings.modelName = "claude-sonnet-5-5"`; `agent/tools.py` builds an agent instead of tool wrappers.
+- `agent/agent.py` imports and builds (`06cebcc`), but its tools are only `searchBuildings`/`getBuilding`:
+  no roof/solar/finance/ranking tools yet. Model `google_genai:gemini-4-hydrogen` conflicts with
+  `Settings.modelName = "claude-sonnet-5-5"`.
+- `14b775a` broke `config.py` (indentation, dropped `load_dotenv`, `rootPath` outside repo); fixed with
+  `tests/test_config.py`. Run `pytest -q` before pushing.
 - PVWatts key is `NLR_API_KEY` (`.env`, `.env.example`, `models/solar.py`); `config.Settings` still expects
   `pvwattsApiKey` (Khoa's file) — align it.
 - Tier-1 payback is nearly identical across Houston (only the PVWatts weather cell varies), so "best payback"

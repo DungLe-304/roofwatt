@@ -10,9 +10,14 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import dotenv_values as dotenvValues
+from dotenv import load_dotenv
 from pydantic import BaseModel, SecretStr
 
-rootPath = Path(__file__).resolve().parent.parent
+rootPath = Path(__file__).resolve().parent  # repo root (config.py lives there)
+
+# Load API keys from the repo-root .env into os.environ on first import (models/solar.py reads NLR_API_KEY).
+# Variables already set in the shell win (override=False), so tests and CI can set their own.
+load_dotenv(rootPath / ".env", override=False)
 
 class Settings(BaseModel):
 	dataMode: Literal["mock", "live"] = "mock"
@@ -47,7 +52,7 @@ def loadSettings() -> Settings:
 	if settings.agentMode == "live" and not settings.anthropicApiKey.get_secret_value().strip():
 		raise ValueError("Live agent mode requires anthropicApiKey.")
 
-    return settings
+	return settings
 
 # --- Roof -------------------------------------------------------------------------------------
 # Assumption (unsourced): share of the roof footprint free of setbacks/HVAC/obstructions. Tier 1 only;
