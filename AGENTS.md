@@ -88,7 +88,7 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 Claude Code (Opus 5.5) — 2026-11-14
 
 ## Current Objective
-Build order step 5–6 of plan §6: CoStar/Vexcel clients (Khoa) and `models/roof.py` tier 1 (Tony).
+Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkpoint.
 
 ## Completed
 - Step 1: scaffold (`004236f`). `AGENTS.md` + `docs/PROJECT_PLAN.md` (`7797fba`). Project plugins (`77e2b12`):
@@ -104,10 +104,12 @@ Build order step 5–6 of plan §6: CoStar/Vexcel clients (Khoa) and `models/roo
   Endpoint `developer.nlr.gov` (NREL renamed; `developer.nrel.gov` no longer resolves). Cache: `cache/pvwatts/<hash>.json`
   keyed by request params (not `building_id`, so a new size/tilt is never a stale hit). 429 → backoff 1/2/4 s, 4 attempts.
   `tests/test_solar.py`: 7 tests, HTTP faked. Live smoke test with `DEMO_KEY`: Houston 100 kW, tilt 10° → 137,948 kWh/yr.
+- Step 6: `models/roof.py` `estimate_roof(building, *, usable_factor) -> RoofResult` (tier 1). Uses `footprint_m2`,
+  else `building_sqft / stories * 0.092903`; raises `ValueError` if neither is available (caller skips the building).
+  `tests/test_roof.py`: 6 tests (TDD). Full suite: 16 passing.
 
 ## Modified Files
-- `models/solar.py`, `tests/test_solar.py` (new), `.env.example` (NREL signup URL),
-  `docs/PROJECT_PLAN.md` (NREL host), `AGENTS.md`
+- `models/roof.py`, `tests/test_roof.py` (new), `AGENTS.md`
 
 ## Known Issues
 - `config.py`: `POWER_DENSITY_KW_PER_M2`, `TILT_DEG`, `ELECTRICITY_RATE_USD_PER_KWH`, `COST_PER_WATT_USD`,
@@ -116,13 +118,14 @@ Build order step 5–6 of plan §6: CoStar/Vexcel clients (Khoa) and `models/roo
 - `TILT_DEG` is `None`: callers of `estimate_solar` have no sourced tilt yet (smoke test used 10° ad hoc).
 - PVWatts cache lives in `models/solar.py`; `data/cache.py` (CoStar/Vexcel) may absorb it later.
 - `requirements.txt` is unpinned; no LLM provider package (`langchain-anthropic`/`langchain-openai`) listed yet.
-- Ranking (drop < 50 kW, sort by payback) not implemented yet; it should also drop `inf` payback rows.
+- Ranking (drop < 50 kW, sort by payback) not implemented yet; it should also drop `inf` payback rows
+  and buildings where `estimate_roof` raised `ValueError` (no size data).
+- `USABLE_FACTOR = 0.6` is an unsourced assumption (plan §4 says label it as such in the UI).
 - `simple_payback_yr` can be `math.inf` → `json.dumps` emits non-standard `Infinity`; convert before caching/tool output.
 - `agent/tools.py` `compute_financials` wrapper must inject the `config.py` values (plan §5 signature differs).
 - MASTER.md suggests Google Fonts (Fira); not used, to keep the demo offline-safe.
 
 ## Immediate Next Steps
 1. Tony: fill `config.py` TODO values with cited sources (`TILT_DEG` and `POWER_DENSITY_KW_PER_M2` first).
-2. `models/roof.py` tier 1 (footprint × `USABLE_FACTOR`, fallback `building_sqft / stories` → m²).
-3. Khoa: read CoStar toolkit docs → `data/costar_client.py` / `data/imagery.py` (mocks first).
-4. Step-7 checkpoint: one Houston building end-to-end.
+2. Khoa: read CoStar toolkit docs → `data/costar_client.py` / `data/imagery.py` (mocks first).
+3. Step-7 checkpoint: one Houston building end-to-end.
