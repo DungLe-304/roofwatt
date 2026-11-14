@@ -2,7 +2,7 @@
 
 AI agent that finds the commercial rooftops in Houston with the best solar economics, estimates energy, savings, payback and CO2 avoided, and drafts a proposal to the building owner.
 
-Built at HackPrinceton Fall 2026 by Tony Le and Khoa Nguyen.
+Built at HackPrinceton Fall 2026 by Dung Le (Tony Le) and Khoa Nguyen.
 
 ## Setup
 
