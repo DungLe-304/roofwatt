@@ -75,7 +75,7 @@ UI: pydeck map + ranked table + detail panel + proposal + tool trace
 | Language | Python 3.11+ |
 | Agent | LangChain `deepagents` + whichever LLM key the team has (Claude or OpenAI) |
 | Building data & imagery | CoStar hackathon toolkit (SDK, MCP servers, OpenAPI) — **read its docs first; API shapes below are placeholders** |
-| Solar energy | NREL PVWatts v8 API (free key at developer.nrel.gov) |
+| Solar energy | NREL PVWatts v8 API (free key at developer.nlr.gov/signup — NREL renamed; old host no longer resolves) |
 | Image processing | Pillow / OpenCV; stretch: Segment Anything |
 | UI | Streamlit + pydeck |
 | Cache | Local JSON or SQLite keyed by `building_id` (demo must survive bad Wi-Fi) |
