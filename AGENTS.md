@@ -19,7 +19,7 @@ solar economics: energy, savings, payback, CO₂ avoided, plus a drafted proposa
 | Part | Choice |
 |---|---|
 | Language | Python 3.11+ (local: 3.13) |
-| Agent | LangChain `deepagents` + Claude or OpenAI LLM |
+| Agent | LangChain `deepagents` + Gemini (`google_genai:gemini-4-hydrogen`, key `GOOGLE_API_KEY`) |
 | Building data / imagery | CoStar hackathon toolkit (CoStar, Vexcel; Matterport stretch). API shapes are **unverified placeholders** |
 | Solar energy | NREL PVWatts v8 API |
 | Images | Pillow / OpenCV (stretch: Segment Anything) |
@@ -50,7 +50,7 @@ design-system/roofwatt/MASTER.md  UI design system (colors, type, spacing); read
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env        # fill COSTAR/VEXCEL/MATTERPORT/NREL/ANTHROPIC/OPENAI keys
+cp .env.example .env        # fill VEXCEL/MATTERPORT/NLR/GOOGLE keys (CoStar is a local extract, needs git lfs)
 streamlit run app.py        # run UI
 pytest -q                   # run tests
 ```
@@ -85,10 +85,10 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Opus 5.5) — 2026-11-14
+Claude Code (Fable 5.2) — 2026-11-14
 
 ## Current Objective
-Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkpoint.
+Agent answers the demo query end-to-end over all Houston offices. Next: Streamlit UI, imagery.
 
 ## Completed
 - Step 1: scaffold (`004236f`). `AGENTS.md` + `docs/PROJECT_PLAN.md` (`7797fba`). Project plugins (`77e2b12`):
@@ -118,36 +118,46 @@ Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkp
   pydantic `models/schemas.py` (camelCase + snake_case aliases/properties), `config.Settings`. 21 tests pass.
   Real-data run: 185 Houston offices, all have sqft/stories/lat-lon (no footprint); 12 run through
   roof → PVWatts → finance OK (payback 11.05–11.78 yr).
+- `14b775a` broke `config.py` (indentation, dropped `load_dotenv`, `rootPath` outside repo); fixed with
+  `tests/test_config.py`. Run `pytest -q` before pushing.
+- Agent tools (`agent/tools.py`): `analyzeRoof`, `estimateSolar`, `computeFinancials`, each taking only a
+  `buildingId` and recomputing the chain (no numbers copied by the LLM); errors return `{"buildingId","error"}`;
+  `inf` payback → `null`. `tests/test_tools.py` (12). LLM switched fully to Gemini: `Settings.modelName =
+  "google_genai:gemini-4-hydrogen"` (agent reads it), Anthropic key/package removed, live mode needs `GOOGLE_API_KEY`.
+  Live demo query: 1 search + 20 `computeFinancials`, 74 s, ranked top 10 + pitch, numbers all from tools.
+- `rankBuildings(city, propertyType, minSqft, limit)`: screens every match in code (`CostarClient.allBuildings`,
+  8 threads, PVWatts cached: 17 s cold, < 1 s warm), drops errors / < `MIN_SYSTEM_KW` / null payback, sorts payback
+  (0.01-yr precision) asc then CO₂ desc; equal payback shares a rank (1, 1, 1, 4). Houston offices: 185 matches,
+  173 ranked, 12 too small. Live demo query now: 1 `rankBuildings` + 10 `getBuilding`, 50 s. 40 tests pass.
+- `uv` installed (brew); `uv.lock` regenerated for `langchain-google-genai`.
 
 ## Modified Files
-- `models/roof.py`, `tests/test_roof.py` (new), `.env.example` (restored), `config.py` (load_dotenv + sourced values, merged with Khoa's `Settings`), `models/solar.py` +
-  `tests/test_solar.py` (`NLR_API_KEY`), `CLAUDE.md` (restored `@AGENTS.md`), `tests/test_config.py` (new), `AGENTS.md`
+- Latest session: `agent/tools.py`, `agent/agent.py`, `data/costar_client.py` (`iterMatches`/`allBuildings`),
+  `config.py` (Gemini `Settings`), `tests/test_tools.py` (new), `tests/test_config.py`, `tests/test_costar_client.py`,
+  `pyproject.toml`, `uv.lock`, `requirements.txt`, `.env.example`, `docs/PROJECT_PLAN.md`, `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
   EIA rate is an all-in average (incl. demand charges); eGRID uses total-output rate, not marginal.
-- CoStar/Vexcel API shapes unknown until toolkit docs are read; footprint field may be missing.
+- Vexcel imagery API shape still unknown (`data/imagery.py` is a stub). CoStar extract has no roof footprint.
 - PVWatts cache lives in `models/solar.py`; `data/cache.py` (CoStar/Vexcel) may absorb it later.
-- `requirements.txt` is unpinned; no LLM provider package (`langchain-anthropic`/`langchain-openai`) listed yet.
-- Ranking (drop < 50 kW, sort by payback) not implemented yet; it should also drop `inf` payback rows
-  and buildings where `estimate_roof` raised `ValueError` (no size data).
+- `requirements.txt` is unpinned and lists `dotenv` (deprecated PyPI package; `python-dotenv` is the real one).
+  `pyproject.toml` gets `requests`/`pydeck`/`pandas`/`pillow` only transitively.
 - `USABLE_FACTOR = 0.6` is an unsourced assumption (plan §4 says label it as such in the UI).
-- `simple_payback_yr` can be `math.inf` → `json.dumps` emits non-standard `Infinity`; convert before caching/tool output.
-- `agent/tools.py` `compute_financials` wrapper must inject the `config.py` values (plan §5 signature differs).
 - MASTER.md suggests Google Fonts (Fira); not used, to keep the demo offline-safe.
-- `agent/agent.py` imports and builds (`06cebcc`), but its tools are only `searchBuildings`/`getBuilding`:
-  no roof/solar/finance/ranking tools yet. Model `google_genai:gemini-4-hydrogen` conflicts with
-  `Settings.modelName = "claude-sonnet-5-5"`.
-- `14b775a` broke `config.py` (indentation, dropped `load_dotenv`, `rootPath` outside repo); fixed with
-  `tests/test_config.py`. Run `pytest -q` before pushing.
-- PVWatts key is `NLR_API_KEY` (`.env`, `.env.example`, `models/solar.py`); `config.Settings` still expects
-  `pvwattsApiKey` (Khoa's file) — align it.
-- Tier-1 payback is nearly identical across Houston (only the PVWatts weather cell varies), so "best payback"
-  ranking is mostly noise; ranking needs a real differentiator (e.g. size/CO₂, rate or cost by size).
+- PVWatts key is `NLR_API_KEY` (`.env`, `.env.example`, `models/solar.py`); `config.Settings` still has an unused
+  `pvwattsApiKey` field — align or drop it.
+- Proposal letter omits the ITC caveat (placed in service by 2027-12-31). Pending decision: return a `caveats`
+  list from the finance tools and require it in pitches.
+- `app.py`, `data/imagery.py`, `data/cache.py` are still one-line stubs: `streamlit run app.py` shows a blank page.
+- `config.Settings`: `dataMode`/`agentMode`/`costarSource`/`costarExportPath`/`*ApiKey` are unused; the default
+  `costarExportPath` (`../CoStar Data Extract`) does not exist.
+- Tier-1 payback is nearly flat across Houston (11.05–11.78 yr; only the PVWatts weather cell varies): 12 offices
+  tie at rank 1, so the top 10 is effectively ordered by CO₂/size. Needs a real differentiator (cost or rate by size).
 - Repo is PUBLIC and now contains the CoStar extract (`commercial-properties.csv`, `data/*.jsonl`): check
   CoStar data terms before submission. Cloning needs `git lfs`.
 
 ## Immediate Next Steps
-1. Khoa: read CoStar toolkit docs → `data/costar_client.py` / `data/imagery.py` (mocks first).
-2. Step-7 checkpoint: one real CoStar Houston building end-to-end (models chain already works on a hypothetical one).
-3. Ranking helper (drop < `MIN_SYSTEM_KW`, `inf` payback, `ValueError` buildings; sort payback asc, CO₂ desc).
+1. Streamlit UI (`app.py`): query box, tool trace, map, ranked table, detail, proposal — MVP blocker.
+2. Khoa: Vexcel imagery in `data/imagery.py` (roof image for the detail panel).
+3. Payback differentiator (size-dependent $/W or rate), then ITC `caveats` in tool output.

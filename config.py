@@ -24,12 +24,10 @@ class Settings(BaseModel):
 	agentMode: Literal["mock", "live"] = "mock"
 	costarSource: Literal["export", "api"] = "export"
 	costarExportPath: Path = rootPath.parent / "CoStar Data Extract"
-	modelName: str = "claude-sonnet-5-5"
-	anthropicApiKey: SecretStr = SecretStr("")
+	modelName: str = "google_genai:gemini-4-hydrogen"  # LangChain id; langchain-google-genai reads GOOGLE_API_KEY
 	costarApiKey: SecretStr = SecretStr("")
 	vexcelApiKey: SecretStr = SecretStr("")
 	pvwattsApiKey: SecretStr = SecretStr("")
-	geminiApiKey: SecretStr = SecretStr("")
 
 def loadSettings() -> Settings:
 	configValues = dict(dotenvValues(rootPath / ".env"))
@@ -49,8 +47,9 @@ def loadSettings() -> Settings:
 	if not settings.costarExportPath.is_absolute():
 		settings.costarExportPath = (rootPath / settings.costarExportPath).resolve()
 
-	if settings.agentMode == "live" and not settings.anthropicApiKey.get_secret_value().strip():
-		raise ValueError("Live agent mode requires anthropicApiKey.")
+	googleApiKey = os.environ.get("GOOGLE_API_KEY") or configValues.get("GOOGLE_API_KEY") or ""
+	if settings.agentMode == "live" and not googleApiKey.strip():
+		raise ValueError("Live agent mode requires GOOGLE_API_KEY (Gemini).")
 
 	return settings
 
