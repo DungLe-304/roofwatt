@@ -148,10 +148,13 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
   the blog's `ExtractOrthoImages` was outdated). `VEXCEL_API_KEY` is an API key → `api_key` query param (`token`
   param and `/auth/verify` give 401). Layer `urban`, `wkt=POINT(lon lat)`, square frame = max(80 m, 1.5×√footprint),
   640 px JPEG. Top 20 Houston offices prefetched to `cache/vexcel/` (20/20, 3.1 MB, 10 s). 57 tests.
+- `app.py` shows roof images: `agent/results.py` `roofImages(messages)` reads successful `getRoofImage` results;
+  images render under the reply and stay in chat history (stored per message, not sent to the agent).
+  `tests/test_app.py` drives the app with a fake agent (no Gemini quota). 60 tests; server health OK.
 
 ## Modified Files
-- Latest session: `data/imagery.py` (official /v2/ortho/extract), `agent/tools.py` (frame size), `.env.example`,
-  `tests/test_imagery.py`, `tests/test_tools.py`, `AGENTS.md`
+- Latest session: `app.py` (roof images), `agent/results.py` (new), `tests/test_results.py`, `tests/test_app.py` (new),
+  `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
@@ -164,7 +167,7 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
   list from the finance tools and require it in pitches.
 - **Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen`, exhausted 2026-11-14 ~15:45 ET (resets
   ~03:00 ET Nov 15).** One demo query uses ~3-12 requests. Demo is blocked until billing is enabled or quota resets.
-- `app.py` (Khoa) is a chat UI only: no tool trace, map, ranked table or detail panel yet (plan §6 step 9).
+- `app.py` (Khoa) is a chat UI + roof images: no tool trace, map or ranked table yet (plan §6 step 9).
 - Roof image frame uses the tier-1 footprint (sqft / stories), which undershoots wide low buildings (e.g. 362982
   spills past the frame edges). `cache/` is gitignored: run `python tools/prefetch_images.py` on the demo machine.
 - CoStar extract has no roof footprint (tier 1 uses sqft / stories).
@@ -174,6 +177,6 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 
 ## Immediate Next Steps
 1. Gemini quota: enable billing on the Google AI project (or wait for reset) before any demo run.
-2. Show `getRoofImage` `imagePath` in `app.py` (detail panel); prefetch on the demo machine.
+2. Run `python tools/prefetch_images.py` on the demo machine; live demo once Gemini quota resets.
 3. Streamlit UI: tool trace, ranked table, map, detail panel on top of Khoa's chat.
 4. ITC `caveats` in finance tool output (pending decision).

@@ -1,5 +1,6 @@
 import streamlit as st
 from agent.agent import createRoofWattAgent
+from agent.results import roofImages
 
 st.set_page_config(page_title = "RoofWatt", page_icon = "assets/RoofWatt solar power icon.png", layout = "wide")
 st.title("RoofWatt")
@@ -24,6 +25,10 @@ def extractText(content):
 	else:
 		return str(content)
 
+def showRoofImages(images):
+	for buildingId, imagePath in images:
+		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
+
 if __name__ == "__main__":
 	agent = loadAgent()
 
@@ -33,6 +38,7 @@ if __name__ == "__main__":
 	for message in st.session_state.chatMessages:
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
+			showRoofImages(message.get("images", []))
 
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
@@ -45,11 +51,14 @@ if __name__ == "__main__":
 		with st.chat_message("assistant"):
 			with st.spinner("Analyzing properties..."):
 				try:
-					result = agent.invoke({"messages": st.session_state.chatMessages})
+					history = [{"role": message["role"], "content": message["content"]} for message in st.session_state.chatMessages]
+					result = agent.invoke({"messages": history})
 
 					responseText = extractText(result["messages"][-1].content)
+					images = roofImages(result["messages"])
 					st.markdown(responseText)
+					showRoofImages(images)
 
-					st.session_state.chatMessages.append({"role": "assistant", "content": responseText})
+					st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images})
 				except Exception as error:
 					st.error(f"RoofWatt could not complete the request: {error}")
