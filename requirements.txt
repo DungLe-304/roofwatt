@@ -1,0 +1,9 @@
+deepagents
+langchain
+streamlit
+pydeck
+requests
+python-dotenv
+pandas
+pillow
+pytest
