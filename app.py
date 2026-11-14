@@ -102,6 +102,14 @@ def showRoofImages(images):
 	for buildingId, imagePath in images:
 		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
 
+
+def showAssistantExtras(message, key):
+	if message.get("ranking"):
+		showRanking(message["ranking"], key = key)
+	showRoofImages(message.get("images", []))
+	if message.get("trace"):
+		showTrace(message["trace"])
+
 def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
 	filters = f"city={city}, propertyType={propertyType}, minimum gross area={minGrossArea} sq ft, limit={limit}"
 	if mode == "Search":
@@ -125,13 +133,12 @@ def runAgentRequest(agent, requestText):
 				responseText = extractText(result["messages"][-1].content)
 				images = roofImages(result["messages"])
 				ranking = rankingResult(result["messages"])
+				trace = toolTrace(result["messages"])
 				if ranking:
 					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
 				st.markdown(responseText)
-				if ranking:
-					showRanking(ranking)
-				showRoofImages(images)
-				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking})
+				showAssistantExtras({"images": images, "ranking": ranking, "trace": trace}, key = f"ranking-current-{len(st.session_state.chatMessages)}")
+				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking, "trace": trace})
 			except Exception as error:
 				errorMessage = str(error)
 				if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
@@ -151,10 +158,11 @@ if __name__ == "__main__":
 		st.session_state.chatMessages = []
 		st.rerun()
 
-	for message in st.session_state.chatMessages:
+	for index, message in enumerate(st.session_state.chatMessages):
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
-			showAssistantExtras(message, key = f"ranking-{index}")
+			if message["role"] == "assistant":
+				showAssistantExtras(message, key = f"ranking-{index}")
 
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
