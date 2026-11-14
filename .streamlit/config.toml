@@ -1,0 +1,10 @@
+# Theme from design-system/roofwatt/MASTER.md (ui-ux-pro-max: Minimalism & Swiss, dark slate + status green).
+# primaryColor uses green-700 instead of the design system's #22C55E: Streamlit draws white text on
+# primary buttons, and white on #22C55E fails WCAG 4.5:1. System font keeps the demo working offline.
+[theme]
+base = "dark"
+primaryColor = "#15803D"
+backgroundColor = "#0F172A"
+secondaryBackgroundColor = "#1B2336"
+textColor = "#F8FAFC"
+font = "sans serif"
