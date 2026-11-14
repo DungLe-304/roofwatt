@@ -57,8 +57,8 @@
 User query (Streamlit)
    ↓
 Agent (LangChain deepagents) — plans, then calls tools:
-   ├─ search_buildings()   → CoStar toolkit (SDK / MCP / OpenAPI)
-   ├─ get_building()       → CoStar building details
+   ├─ searchBuildings   → CoStar toolkit (SDK / MCP / OpenAPI)
+   ├─ getBuilding()       → CoStar building details
    ├─ get_aerial()         → Vexcel imagery
    ├─ analyze_roof()       → usable roof area (m²)
    ├─ estimate_solar()     → NREL PVWatts v8 API (kWh/yr)
