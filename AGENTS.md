@@ -42,6 +42,8 @@ models/solar.py     PVWatts client (cache + 429 handling)
 models/finance.py   savings, payback, CO₂ (pure functions)
 tests/              pytest (test_finance.py)
 docs/PROJECT_PLAN.md   full plan, data contracts, calc model, agent design
+index.md, schemas/, models/*.md, tools/expand_records.py   CoStar data kit docs (data in data/*.jsonl via Git LFS)
+assets/             app icon
 design-system/roofwatt/MASTER.md  UI design system (colors, type, spacing); read before UI work
 .streamlit/config.toml  Streamlit theme derived from MASTER.md
 ```
@@ -61,7 +63,7 @@ usable_roof_m2 = footprint_m2 * USABLE_FACTOR
 system_kw      = usable_roof_m2 * POWER_DENSITY_KW_PER_M2
 annual_kwh     = PVWatts(lat, lon, system_kw, array_type=1, tilt=TILT_DEG, azimuth=180, losses=14)
 savings_usd    = annual_kwh * ELECTRICITY_RATE_USD_PER_KWH
-capex_usd      = system_kw * 1000 * COST_PER_WATT_USD;  net = capex * (1 - INCENTIVE_PCT)
+capex_usd      = system_kw * 1000 * cost_per_watt_for_size(system_kw, COST_PER_WATT_BY_SIZE_KW);  net = capex * (1 - INCENTIVE_PCT)
 payback_yr     = net_capex / savings;  co2_t/yr = annual_kwh * GRID_EF_KG_PER_KWH / 1000
 ```
 Ranking: drop `system_kw < 50`; sort payback ascending, tie-break CO₂ descending.
@@ -85,10 +87,10 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Fable 5.2) — 2026-11-14
+Claude Code (Opus 5.5) — 2026-11-14
 
 ## Current Objective
-Agent answers the demo query end-to-end over all Houston offices. Next: Streamlit UI, imagery.
+Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemini quota. Next: imagery, UI.
 
 ## Completed
 - Step 1: scaffold (`004236f`). `AGENTS.md` + `docs/PROJECT_PLAN.md` (`7797fba`). Project plugins (`77e2b12`):
@@ -112,7 +114,7 @@ Agent answers the demo query end-to-end over all Houston offices. Next: Streamli
   without relying on VS Code's `python.terminal.useEnvFile`.
 - `config.py` filled with cited sources (verified 2026-11-14): power density 0.211 kW/m² module (DOE 2025Q1)
   × 0.70 module/roof (Gagnon 2016 T1) = 0.1477; tilt 15° (Gagnon T1); rate $0.0856 (EIA EPA T2.10, TX 2025);
-  $1.98/W (DOE 2025Q1 MMP); ITC 30% (§48E); grid 733.862 lb/MWh → 0.3329 kg/kWh (eGRID2023 ERCT).
+  $1.98/W (DOE 2025Q1 MMP; later replaced by LBNL size bins); ITC 30% (§48E); grid 733.862 lb/MWh → 0.3329 kg/kWh (eGRID2023 ERCT).
   Live sanity run (hypothetical 100k ft², 4 stories, Houston): 206 kW, 289 MWh/yr, payback 11.5 yr, 96 t CO₂/yr.
 - Khoa (`f822a22`, merged into `main`): CoStar extract adapter `data/costar_client.py` (local JSONL, LFS),
   pydantic `models/schemas.py` (camelCase + snake_case aliases/properties), `config.Settings`. 21 tests pass.
@@ -130,34 +132,51 @@ Agent answers the demo query end-to-end over all Houston offices. Next: Streamli
   (0.01-yr precision) asc then CO₂ desc; equal payback shares a rank (1, 1, 1, 4). Houston offices: 185 matches,
   173 ranked, 12 too small. Live demo query now: 1 `rankBuildings` + 10 `getBuilding`, 50 s. 40 tests pass.
 - `uv` installed (brew); `uv.lock` regenerated for `langchain-google-genai`.
+- Khoa's merge `c093a56` dropped every function body in `agent/tools.py` (conflict resolved to his 3-line file);
+  `34ad05e` then removed the names. Restored from `e5990b2`; Khoa's `randomize` search kept.
+- Payback differentiator: `COST_PER_WATT_BY_SIZE_KW` (LBNL 2026 Data Update, slide 36, 2025 non-res medians:
+  <=10 kW $3.6 ... >1 MW $1.9/W) via `models.finance.cost_per_watt_for_size`. Houston offices: payback 10.93-16.45 yr,
+  71 distinct ranks (was 35), single rank-1. Tool rows now include `costPerWattUsd`.
+- Cleanup: `Settings` trimmed to `agentMode`/`modelName` (keys read from real env names); `dotenv` package dropped,
+  `requests` added to `pyproject.toml`, `socksio` to `requirements.txt`, `uv.lock` updated; README (Git LFS, uv,
+  keys, tests); `app.py` icon path fixed + duplicate import removed; stub pointers -> `docs/PROJECT_PLAN.md`. 47 tests.
+- Guard: `tests/test_agent.py` fails if the system prompt names a tool missing from `roofWattTools` (prompt is now
+  module-level `agent.agent.systemPrompt`). Verified it catches the `34ad05e` regression.
+- Plan B: `data/cache.py` (file cache `cache/<ns>/<key>.<ext>`), `data/imagery.py` `get_roof_image` (Vexcel
+  ExtractOrthoImages, cached, clear errors), tool `getRoofImage`, `tools/prefetch_images.py --top 20`. 55 tests.
+- Vexcel working: real API is `GET https://api.vexcelgroup.com/v2/ortho/extract` (OpenAPI at `/v2/api-docs/ortho`;
+  the blog's `ExtractOrthoImages` was outdated). `VEXCEL_API_KEY` is an API key → `api_key` query param (`token`
+  param and `/auth/verify` give 401). Layer `urban`, `wkt=POINT(lon lat)`, square frame = max(80 m, 1.5×√footprint),
+  640 px JPEG. Top 20 Houston offices prefetched to `cache/vexcel/` (20/20, 3.1 MB, 10 s). 57 tests.
+- `app.py` shows roof images: `agent/results.py` `roofImages(messages)` reads successful `getRoofImage` results;
+  images render under the reply and stay in chat history (stored per message, not sent to the agent).
+  `tests/test_app.py` drives the app with a fake agent (no Gemini quota). 60 tests; server health OK.
 
 ## Modified Files
-- Latest session: `agent/tools.py`, `agent/agent.py`, `data/costar_client.py` (`iterMatches`/`allBuildings`),
-  `config.py` (Gemini `Settings`), `tests/test_tools.py` (new), `tests/test_config.py`, `tests/test_costar_client.py`,
-  `pyproject.toml`, `uv.lock`, `requirements.txt`, `.env.example`, `docs/PROJECT_PLAN.md`, `AGENTS.md`
+- Latest session: `app.py` (roof images), `agent/results.py` (new), `tests/test_results.py`, `tests/test_app.py` (new),
+  `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
   EIA rate is an all-in average (incl. demand charges); eGRID uses total-output rate, not marginal.
-- Vexcel imagery API shape still unknown (`data/imagery.py` is a stub). CoStar extract has no roof footprint.
 - PVWatts cache lives in `models/solar.py`; `data/cache.py` (CoStar/Vexcel) may absorb it later.
-- `requirements.txt` is unpinned and lists `dotenv` (deprecated PyPI package; `python-dotenv` is the real one).
-  `pyproject.toml` gets `requests`/`pydeck`/`pandas`/`pillow` only transitively.
+- `requirements.txt` is unpinned; `pydeck`/`pandas`/`pillow` are listed there but not yet used or in `pyproject.toml`.
 - `USABLE_FACTOR = 0.6` is an unsourced assumption (plan §4 says label it as such in the UI).
 - MASTER.md suggests Google Fonts (Fira); not used, to keep the demo offline-safe.
-- PVWatts key is `NLR_API_KEY` (`.env`, `.env.example`, `models/solar.py`); `config.Settings` still has an unused
-  `pvwattsApiKey` field — align or drop it.
 - Proposal letter omits the ITC caveat (placed in service by 2027-12-31). Pending decision: return a `caveats`
   list from the finance tools and require it in pitches.
-- `app.py`, `data/imagery.py`, `data/cache.py` are still one-line stubs: `streamlit run app.py` shows a blank page.
-- `config.Settings`: `dataMode`/`agentMode`/`costarSource`/`costarExportPath`/`*ApiKey` are unused; the default
-  `costarExportPath` (`../CoStar Data Extract`) does not exist.
-- Tier-1 payback is nearly flat across Houston (11.05–11.78 yr; only the PVWatts weather cell varies): 12 offices
-  tie at rank 1, so the top 10 is effectively ordered by CO₂/size. Needs a real differentiator (cost or rate by size).
+- **Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen`, exhausted 2026-11-14 ~15:45 ET (resets
+  ~03:00 ET Nov 15).** One demo query uses ~3-12 requests. Demo is blocked until billing is enabled or quota resets.
+- `app.py` (Khoa) is a chat UI + roof images: no tool trace, map or ranked table yet (plan §6 step 9).
+- Roof image frame uses the tier-1 footprint (sqft / stories), which undershoots wide low buildings (e.g. 362982
+  spills past the frame edges). `cache/` is gitignored: run `python tools/prefetch_images.py` on the demo machine.
+- CoStar extract has no roof footprint (tier 1 uses sqft / stories).
+- `COST_PER_WATT_BY_SIZE_KW` uses national medians; Texas prices are not broken out by LBNL.
 - Repo is PUBLIC and now contains the CoStar extract (`commercial-properties.csv`, `data/*.jsonl`): check
   CoStar data terms before submission. Cloning needs `git lfs`.
 
 ## Immediate Next Steps
-1. Streamlit UI (`app.py`): query box, tool trace, map, ranked table, detail, proposal — MVP blocker.
-2. Khoa: Vexcel imagery in `data/imagery.py` (roof image for the detail panel).
-3. Payback differentiator (size-dependent $/W or rate), then ITC `caveats` in tool output.
+1. Gemini quota: enable billing on the Google AI project (or wait for reset) before any demo run.
+2. Run `python tools/prefetch_images.py` on the demo machine; live demo once Gemini quota resets.
+3. Streamlit UI: tool trace, ranked table, map, detail panel on top of Khoa's chat.
+4. ITC `caveats` in finance tool output (pending decision).

@@ -5,6 +5,7 @@ import streamlit as st
 import streamlit_hotkeys as hotkeys
 
 from agent.agent import createRoofWattAgent
+from agent.results import roofImages
 
 st.set_page_config(page_title = "RoofWatt", page_icon = "assets/rooftwatt_icon.png", layout = "wide")
 hotkeys.activate([hotkeys.hk("scroll_bottom", "End", ctrl = True, prevent_default = True, help = "Scroll to the latest message")])
@@ -61,6 +62,10 @@ if st.button("Scroll to latest message"):
 	scrollToBottom()
 
 
+def showRoofImages(images):
+	for buildingId, imagePath in images:
+		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
+
 if __name__ == "__main__":
 	agent = loadAgent()
 
@@ -70,6 +75,7 @@ if __name__ == "__main__":
 	for message in st.session_state.chatMessages:
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
+			showRoofImages(message.get("images", []))
 
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
@@ -87,19 +93,16 @@ if __name__ == "__main__":
 		with st.chat_message("assistant"):
 			with st.spinner("Analyzing properties..."):
 				try:
-					result = agent.invoke({
-						"messages": st.session_state.chatMessages
-					})
+					result = agent.invoke({"messages": st.session_state.chatMessages})
+					history = [{"role": message["role"], "content": message["content"]} for message in st.session_state.chatMessages]
+					result = agent.invoke({"messages": history})
 
 					responseText = extractText(result["messages"][-1].content)
+					images = roofImages(result["messages"])
 					st.markdown(responseText)
+					showRoofImages(images)
 
-					st.session_state.chatMessages.append({
-						"role": "assistant",
-						"content": responseText
-					})
-
-					scrollToBottom()
+					st.session_state.chatMessages.append({"role": "assistant", "content": responseText})
 				except Exception as error:
 					st.error(f"RoofWatt could not complete the request: {error}")
 					scrollToBottom()

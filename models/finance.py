@@ -8,6 +8,14 @@ import math
 from models.schemas import FinanceResult, SolarResult
 
 
+def cost_per_watt_for_size(system_kw: float, bins) -> float:
+    """Installed $/W for a system size. bins: ((upper_kw_inclusive, usd_per_w), ...) ascending, last upper = inf."""
+    for upper_kw, usd_per_w in bins:
+        if system_kw <= upper_kw:
+            return usd_per_w
+    raise ValueError(f"no cost bin covers {system_kw} kW")
+
+
 def compute_financials(
     solar: SolarResult,
     *,

@@ -14,10 +14,15 @@ def test_root_path_is_repo_root():
 
 
 def test_load_settings_reads_repo_env(tmp_path, monkeypatch):
-	(tmp_path / ".env").write_text("pvwattsApiKey=from-env-file\n")
+	(tmp_path / ".env").write_text("modelName=google_genai:from-env-file\n")
 	monkeypatch.setattr(config, "rootPath", tmp_path)
-	monkeypatch.delenv("pvwattsApiKey", raising=False)
-	assert config.loadSettings().pvwattsApiKey.get_secret_value() == "from-env-file"
+	monkeypatch.delenv("modelName", raising=False)
+	assert config.loadSettings().modelName == "google_genai:from-env-file"
+
+
+def test_settings_only_holds_fields_the_app_uses():
+	# API keys are read from their real env names (NLR_API_KEY, GOOGLE_API_KEY, VEXCEL_API_KEY), not Settings.
+	assert set(config.Settings.model_fields) == {"agentMode", "modelName"}
 
 
 def test_default_model_is_gemini():

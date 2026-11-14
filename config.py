@@ -11,7 +11,7 @@ from typing import Literal
 
 from dotenv import dotenv_values as dotenvValues
 from dotenv import load_dotenv
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 
 rootPath = Path(__file__).resolve().parent  # repo root (config.py lives there)
 
@@ -20,14 +20,12 @@ rootPath = Path(__file__).resolve().parent  # repo root (config.py lives there)
 load_dotenv(rootPath / ".env", override=False)
 
 class Settings(BaseModel):
-	dataMode: Literal["mock", "live"] = "mock"
+	"""App settings, overridable from .env / .streamlit/secrets.toml / environment by field name.
+
+	API keys are not stored here: modules read them from their env names (NLR_API_KEY, GOOGLE_API_KEY, VEXCEL_API_KEY).
+	"""
 	agentMode: Literal["mock", "live"] = "mock"
-	costarSource: Literal["export", "api"] = "export"
-	costarExportPath: Path = rootPath.parent / "CoStar Data Extract"
 	modelName: str = "google_genai:gemini-4-hydrogen"  # LangChain id; langchain-google-genai reads GOOGLE_API_KEY
-	costarApiKey: SecretStr = SecretStr("")
-	vexcelApiKey: SecretStr = SecretStr("")
-	pvwattsApiKey: SecretStr = SecretStr("")
 
 def loadSettings() -> Settings:
 	configValues = dict(dotenvValues(rootPath / ".env"))
@@ -43,9 +41,6 @@ def loadSettings() -> Settings:
 
 	knownValues = {fieldName: fieldValue for fieldName, fieldValue in configValues.items() if fieldName in Settings.model_fields and fieldValue is not None}
 	settings = Settings(**knownValues)
-
-	if not settings.costarExportPath.is_absolute():
-		settings.costarExportPath = (rootPath / settings.costarExportPath).resolve()
 
 	googleApiKey = os.environ.get("GOOGLE_API_KEY") or configValues.get("GOOGLE_API_KEY") or ""
 	if settings.agentMode == "live" and not googleApiKey.strip():
@@ -85,11 +80,16 @@ PVWATTS_LOSSES_PCT = 14  # PVWatts default system losses (Gagnon et al. 2016 Tab
 # Caveat: an all-in average (includes demand charges); solar mostly offsets energy charges.
 ELECTRICITY_RATE_USD_PER_KWH = 0.0856
 
-# Commercial rooftop PV installed price: modeled market price (MMP) $1.98/Wdc (MSP is $1.95/Wdc),
-# 250 kWdc flat-roof school system, PV only, 2024 USD, before subsidies.
-# Source: DOE, "Solar Photovoltaic System Cost Benchmarks", 2025Q1 PV-only benchmarks, Table 2.
-# https://www.energy.gov/cmei/systems/solar-photovoltaic-system-cost-benchmarks
-COST_PER_WATT_USD = 1.98
+# Installed price by system size: median up-front price, U.S. non-residential PV installed in 2025, 2025$/W_DC,
+# before incentives (national medians; Texas not broken out). Each entry: (upper bound kW, inclusive; $/W).
+# Source: LBNL, "U.S. Distributed Solar and Storage 2026 Data Update" (Aug 2026), slide 36 "Economies of Scale
+# with PV System Size", chart "Non-Residential Systems Installed in 2025", labeled medians.
+# https://emp.lbl.gov/sites/default/files/2026-08/Distributed%20Solar%20&%20Storage-2026%20Data%20Update_FINAL.pdf
+# Replaces the single DOE 2025Q1 benchmark ($1.98/W for a 250 kW school roof), which made payback flat across sizes.
+COST_PER_WATT_BY_SIZE_KW = (
+    (10, 3.6), (20, 3.1), (50, 3.0), (100, 2.8),  # small non-residential
+    (250, 2.6), (500, 2.3), (1000, 2.1), (float("inf"), 1.9),  # large non-residential (> 100 kW)
+)
 
 # Federal clean electricity ITC, IRC §48E(a)(2)(A)(ii): 30% for a facility under 1 MW AC, or larger
 # facilities meeting prevailing wage + apprenticeship (§48E(d)(3)-(4)). Bonus adders (domestic content,
