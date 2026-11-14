@@ -107,9 +107,12 @@ Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkp
 - Step 6: `models/roof.py` `estimate_roof(building, *, usable_factor) -> RoofResult` (tier 1). Uses `footprint_m2`,
   else `building_sqft / stories * 0.092903`; raises `ValueError` if neither is available (caller skips the building).
   `tests/test_roof.py`: 6 tests (TDD). Full suite: 16 passing.
+- Env: `.env.example` restored (names only; `.env` holds real keys, gitignored). Key var is `NREL_API_KEY`.
+  `config.py` calls `load_dotenv(<repo>/.env, override=False)`, so any module importing `config` gets keys
+  without relying on VS Code's `python.terminal.useEnvFile`.
 
 ## Modified Files
-- `models/roof.py`, `tests/test_roof.py` (new), `AGENTS.md`
+- `models/roof.py`, `tests/test_roof.py` (new), `.env.example` (restored), `config.py` (load_dotenv), `AGENTS.md`
 
 ## Known Issues
 - `config.py`: `POWER_DENSITY_KW_PER_M2`, `TILT_DEG`, `ELECTRICITY_RATE_USD_PER_KWH`, `COST_PER_WATT_USD`,
