@@ -57,8 +57,8 @@
 User query (Streamlit)
    ↓
 Agent (LangChain deepagents) — plans, then calls tools:
-   ├─ search_buildings()   → CoStar toolkit (SDK / MCP / OpenAPI)
-   ├─ get_building()       → CoStar building details
+   ├─ searchBuildings()    → CoStar toolkit (SDK / MCP / OpenAPI)
+   ├─ getBuilding()        → CoStar building details
    ├─ get_aerial()         → Vexcel imagery
    ├─ analyze_roof()       → usable roof area (m²)
    ├─ estimate_solar()     → NREL PVWatts v8 API (kWh/yr)
@@ -208,8 +208,8 @@ Every value must carry a source string shown as a tooltip in the UI. Values mark
 
 | Tool | Input | Output | Owner |
 |---|---|---|---|
-| `search_buildings` | city, property_type, min_sqft, limit | list of `Building` (basic fields) | Khoa |
-| `get_building` | building_id | `Building` (full) | Khoa |
+| `searchBuildings` | city, propertyType, minSqft, limit | list of `Building` (basic fields) | Khoa |
+| `getBuilding` | buildingId | `Building` (full) | Khoa |
 | `get_aerial` | building_id | image path / URL | Khoa |
 | `analyze_roof` | building_id | `RoofResult` | Tony |
 | `estimate_solar` | lat, lon, system_kw | `SolarResult` | Tony |
@@ -218,7 +218,7 @@ Every value must carry a source string shown as a tooltip in the UI. Values mark
 
 ### System prompt (key points)
 - You are a commercial solar analyst. Always write a plan before calling tools.
-- Screen broadly with `search_buildings`, then deep-analyze **at most 20** buildings per run.
+- Screen broadly with `searchBuildings`, then deep-analyze **at most 20** buildings per run.
 - Every number you report must come from a tool result. Never invent figures. State assumptions.
 - Finish with a ranked table, a short explanation of why #1 wins, and offer to draft a proposal.
 
@@ -289,7 +289,7 @@ Work in this order. Do not start stretch items until step 7 passes.
 
 | Risk | Signal | Fallback |
 |---|---|---|
-| CoStar has no footprint field | `get_building` lacks roof/footprint | Ask CoStar engineers on Discord; use `building_sqft / stories` |
+| CoStar has no footprint field | `getBuilding` lacks roof/footprint | Ask CoStar engineers on Discord; use `building_sqft / stories` |
 | SAM eats time | Not working by Sat 9 PM | Drop it; keep tier 1, labeled as assumption |
 | PVWatts rate limit | HTTP 429 | Cache; reuse kWh/kW for nearby buildings |
 | Agent slow or loops | >1 min per query | Cap iterations; fewer deep-analyzed buildings |
