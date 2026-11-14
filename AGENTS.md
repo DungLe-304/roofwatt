@@ -155,9 +155,12 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 - Assets cleanup: `assets/` now holds only `roofwatt-logo.svg`, `roofwatt-logo-square.svg`,
   `roofwatt-overview-concept.png` (poster concept). Old `RoofWatt solar power icon.png` and the draft
   icon/overview files were deleted. `app.py` `page_icon` -> `assets/roofwatt-logo-square.svg` (was a missing PNG).
+- Tests green again (60): `streamlit-hotkeys` installed in `.venv`; `test_config` lists Khoa's 4 new `agent*`
+  Settings fields; `app.py` stores `images` on assistant messages again (merge `9b99b6c` dropped it, so roof
+  images vanished from history after the next turn).
 
 ## Modified Files
-- Latest session: `assets/` (cleanup above), `app.py` (page_icon), `AGENTS.md`
+- Latest session: `assets/` (cleanup above), `app.py` (page_icon, history images), `tests/test_config.py`, `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
@@ -170,8 +173,6 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
   list from the finance tools and require it in pitches.
 - **Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen`, exhausted 2026-11-14 ~15:45 ET (resets
   ~03:00 ET Nov 15).** One demo query uses ~3-12 requests. Demo is blocked until billing is enabled or quota resets.
-- 2 tests fail since Khoa's `bea18d2`/`642af2b` (58 pass): `streamlit_hotkeys` not installed in `.venv`
-  (`tests/test_app.py`), and `Settings` gained fields beyond `agentMode`/`modelName` (`tests/test_config.py`).
 - `app.py` (Khoa) is a chat UI + roof images: no tool trace, map or ranked table yet (plan §6 step 9).
 - Roof image frame uses the tier-1 footprint (sqft / stories), which undershoots wide low buildings (e.g. 362982
   spills past the frame edges). `cache/` is gitignored: run `python tools/prefetch_images.py` on the demo machine.

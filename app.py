@@ -128,7 +128,7 @@ if __name__ == "__main__":
 					st.markdown(responseText)
 					showRoofImages(images)
 
-					st.session_state.chatMessages.append({"role": "assistant", "content": responseText})
+					st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images})
 				except Exception as error:
 					errorMessage = str(error)
 					if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
