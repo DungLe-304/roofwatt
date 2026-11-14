@@ -2,6 +2,7 @@ deepagents
 langchain
 langchain-google-genai
 streamlit
+streamlit_hotkeys
 pydeck
 requests
 python-dotenv

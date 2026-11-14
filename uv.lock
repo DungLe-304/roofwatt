@@ -1591,6 +1591,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "socksio" },
     { name = "streamlit" },
+    { name = "streamlit-hotkeys" },
 ]
 
 [package.dev-dependencies]
@@ -1607,6 +1608,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "socksio", specifier = ">=1.0.0" },
     { name = "streamlit", specifier = ">=1.67.0" },
+    { name = "streamlit-hotkeys", specifier = ">=0.6.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1750,6 +1752,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/38/47/ea7596bda2d303370b6129688e09a44e5faa64e5b9d86cba4d89ae60a16f/streamlit-1.67.0.tar.gz", hash = "sha256:58159dae1199212250bfa5fbba0740996129003266c2c37d465151ef76c48f3b", size = 10672027, upload-time = "2026-11-05T19:53:54.821Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/58/c4/59f60e52e8f679488bf0caecbe3a8469af1d3d72c352bb0f306915a3e667/streamlit-1.67.0-py3-none-any.whl", hash = "sha256:f29da87c443bfbdfc52738616e3d65745d438e718da8faf69e2be0da1e52ce64", size = 11235773, upload-time = "2026-11-05T19:53:51.688Z" },
+]
+
+[[package]]
+name = "streamlit-hotkeys"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/84/26a443ad5aeaea998350eeb7970dac822a0e91910d751174c1aefb3ee17c/streamlit_hotkeys-0.6.0.tar.gz", hash = "sha256:ebc2da4b7125792a9205ec4cb7db763e54e4eb7abe173019bbe7028f47f953be", size = 17797, upload-time = "2025-08-18T11:33:10.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/69/cc4d020e2e39ac287c658ee8c00b427e2876ea002f4d9eb14634a1890fce/streamlit_hotkeys-0.6.0-py3-none-any.whl", hash = "sha256:47d1cee07cee9f8f7db20e4489ffe7c6ce7073b18fd093c8810a77bd42c6b50d", size = 15819, upload-time = "2025-08-18T11:33:09.647Z" },
 ]
 
 [[package]]
