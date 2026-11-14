@@ -114,3 +114,16 @@ GRID_EF_KG_PER_KWH = GRID_EF_LB_PER_MWH * KG_PER_LB / 1000  # lb/MWh -> kg/kWh =
 
 # --- Ranking ----------------------------------------------------------------------------------
 MIN_SYSTEM_KW = 50  # drop buildings below this size (project rule, plan §4)
+
+# --- Short citations for the UI (full references in the comments above) ----------------------------
+SOURCES = {
+    "USABLE_FACTOR": "Assumption (unsourced)",
+    "POWER_DENSITY_KW_PER_M2": "DOE PV Cost Benchmarks 2025Q1 (0.211 kW/m² module) × Gagnon et al. 2016, NREL Table 1 "
+                               "(0.70 module/roof)",
+    "PVWATTS": "NREL PVWatts v8 (tilt and azimuth: Gagnon et al. 2016, NREL Table 1)",
+    "ELECTRICITY_RATE_USD_PER_KWH": "EIA Electric Power Annual, Table 2.10 (Texas commercial, 2025)",
+    "COST_PER_WATT_BY_SIZE_KW": "LBNL Distributed Solar & Storage 2026 Data Update, slide 36 (2025 non-res. medians)",
+    "INCENTIVE_PCT": "IRC §48E ITC; requires placed in service by 2027-12-31 (Pub. L. 119-21 §70513)",
+    "GRID_EF_KG_PER_KWH": "EPA eGRID2023, ERCOT (ERCT) total output rate",
+    "BUILDING": "CoStar extract (gross building area, stories)",
+}

@@ -102,7 +102,8 @@ def summaryText(result: dict) -> str:
 	return text + "."
 
 
-def showRanking(result: dict) -> None:
+def showRanking(result: dict, *, key: str):
+	"""Caption, map and a single-row-selectable table; returns the table's selection state."""
 	import streamlit as st
 
 	st.caption(summaryText(result))
@@ -110,7 +111,9 @@ def showRanking(result: dict) -> None:
 	if deck is not None:
 		st.pydeck_chart(deck, height=MAP_HEIGHT_PX)
 	number = st.column_config.NumberColumn
-	st.dataframe(rankingTable(result["ranked"]), hide_index=True, width="stretch", column_config={
+	st.caption("Select a row to see that building's roof and numbers below.")
+	return st.dataframe(rankingTable(result["ranked"]), hide_index=True, width="stretch", key=key,
+		on_select="rerun", selection_mode="single-row", column_config={
 		"Rank": number(width="small"),
 		"System (kW)": number(format="localized"),
 		"Energy (MWh/yr)": number(format="localized"),

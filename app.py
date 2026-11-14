@@ -6,10 +6,13 @@ import streamlit as st
 import streamlit_hotkeys as hotkeys
 
 from agent.agent import createRoofWattAgent
-from agent.results import rankingResult, roofImages
+from agent.results import rankingResult, roofImages, toolTrace
+from agent.tools import getRoofImage
 from config import loadSettings
-from data.costar_client import CostarClient
+from data.costar_client import CostarClient, getBuilding
+from ui.detail import selectedIndex, showDetail
 from ui.ranking import addCoordinates, showRanking
+from ui.trace import showTrace
 
 appRoot = Path(__file__).resolve().parent
 pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
@@ -122,18 +125,46 @@ def rankingPrompt(city, propertyType, minGrossArea, limit, randomize):
 
 	return prompt
 
+@st.cache_data(ttl = 300, show_spinner = False)
+def roofImageFor(buildingId):
+	"""getRoofImage, memoized so reruns (every click) do not refetch or retry a failing Vexcel call (60 s timeout)."""
+	return getRoofImage(buildingId)
+
+@st.cache_data(show_spinner = False)
+def lookupBuilding(buildingId):
+	try:
+		return getBuilding(buildingId)
+	except (LookupError, ValueError):
+		return None
+
+def showAssistantExtras(message, key):
+	"""Tool trace, ranked map/table, detail panel for the selected row, then any other roof images."""
+	if message.get("trace"):
+		showTrace(message["trace"])
+	images = message.get("images", [])
+	ranking = message.get("ranking")
+	if ranking:
+		rows = ranking["ranked"]
+		row = rows[selectedIndex(showRanking(ranking, key = key), len(rows))]
+		imagePath, imageError = dict(images).get(row["buildingId"]), None
+		if not imagePath:
+			imageResult = roofImageFor(row["buildingId"])
+			imagePath, imageError = imageResult.get("imagePath"), imageResult.get("error")
+		showDetail(row, imagePath, imageError, lookupBuilding(row["buildingId"]))
+		rankedIds = {ranked["buildingId"] for ranked in rows}
+		images = [image for image in images if image[0] not in rankedIds]  # already shown in the detail panel
+	showRoofImages(images)
+
 if __name__ == "__main__":
 	agent = loadAgent()
 
 	if "chatMessages" not in st.session_state:
 		st.session_state.chatMessages = []
 
-	for message in st.session_state.chatMessages:
+	for index, message in enumerate(st.session_state.chatMessages):
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
-			if message.get("ranking"):
-				showRanking(message["ranking"])
-			showRoofImages(message.get("images", []))
+			showAssistantExtras(message, key = f"ranking-{index}")
 
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
@@ -152,16 +183,15 @@ if __name__ == "__main__":
 					result = agent.invoke({"messages": history})
 
 					responseText = extractText(result["messages"][-1].content)
-					images = roofImages(result["messages"])
 					ranking = rankingResult(result["messages"])
 					if ranking:
 						ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
+					reply = {"role": "assistant", "content": responseText, "images": roofImages(result["messages"]),
+						"ranking": ranking, "trace": toolTrace(result["messages"])}
 					st.markdown(responseText)
-					if ranking:
-						showRanking(ranking)
-					showRoofImages(images)
+					showAssistantExtras(reply, key = f"ranking-{len(st.session_state.chatMessages)}")  # = its index once appended
 
-					st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking})
+					st.session_state.chatMessages.append(reply)
 				except Exception as error:
 					errorMessage = str(error)
 					if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:

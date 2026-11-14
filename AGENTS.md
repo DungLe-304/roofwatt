@@ -37,6 +37,8 @@ data/costar_client.py  CoStar building search/details
 data/imagery.py     Vexcel aerial imagery (Matterport stretch)
 data/cache.py       response cache
 ui/ranking.py       ranked table + pydeck map for a rankBuildings result (rendered in app.py)
+ui/detail.py        detail panel for the selected ranked row (roof image + metrics with source tooltips)
+ui/trace.py         collapsible "Agent steps" list of tool calls
 models/schemas.py   Building, RoofResult, SolarResult, FinanceResult dataclasses
 models/roof.py      usable roof area (tier 1: footprint × USABLE_FACTOR)
 models/solar.py     PVWatts client (cache + 429 handling)
@@ -167,9 +169,16 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
   Map view: own `fitView` (deck.gl world = 512 px at zoom 0; `pdk.data_utils.compute_view` cropped rank 6).
   Verified in headless Chrome with the real Houston top 10. `pandas`/`pydeck` added to `pyproject.toml`. 68 tests.
 
+- Tool trace + detail panel: `agent/results.py` `toolTrace` pairs each AI tool call with its ToolMessage (short
+  result, `write_todos` items nested); `ui/trace.py` shows it in an "Agent steps" expander. Ranked table is
+  single-row selectable (key `ranking-<message index>`, survives reruns); `ui/detail.py` shows the selected row
+  (default rank 1): roof image (agent's image, else `getRoofImage` memoized 5 min so clicks never re-hit a failing Vexcel), 8 metrics whose tooltips give the
+  formula with `config` values + `config.SOURCES` citation (ITC 2027-12-31 caveat on net cost), CoStar sqft/stories/
+  year. Images already in the detail panel are not repeated below. Trace args capped at 160 chars. Clicks verified in headless Chrome. 77 tests.
+
 ## Modified Files
-- Latest session: `ui/` (new), `agent/results.py`, `app.py`, `tests/test_ranking.py` (new), `tests/test_results.py`,
-  `tests/test_app.py`, `pyproject.toml`, `uv.lock`, `AGENTS.md`
+- Latest session: `ui/detail.py`, `ui/trace.py` (new), `ui/ranking.py`, `agent/results.py`, `app.py`,
+  `config.py` (`SOURCES`), `tests/test_detail.py` (new), `tests/test_results.py`, `tests/test_app.py`, `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
@@ -182,7 +191,8 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
   list from the finance tools and require it in pitches.
 - **Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen`, exhausted 2026-11-14 ~15:45 ET (resets
   ~03:00 ET Nov 15).** One demo query uses ~3-12 requests. Demo is blocked until billing is enabled or quota resets.
-- `app.py` has chat, ranked map + table and roof images; no tool trace or detail panel yet (plan §6 step 9).
+- `app.py` UI (plan §6 step 9) has everything except a proposal panel: the pitch is the agent's chat text. The map
+  does not highlight the selected row. Tool trace is unit-tested on LangChain message shapes; not yet seen live.
   Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background.
 - Roof image frame uses the tier-1 footprint (sqft / stories), which undershoots wide low buildings (e.g. 362982
   spills past the frame edges). `cache/` is gitignored: run `python tools/prefetch_images.py` on the demo machine.
@@ -194,5 +204,5 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 ## Immediate Next Steps
 1. Gemini quota: enable billing on the Google AI project (or wait for reset) before any demo run.
 2. Run `python tools/prefetch_images.py` on the demo machine; live demo once Gemini quota resets.
-3. Streamlit UI: tool trace and detail panel (click a ranked row → roof image + numbers with sources).
-4. ITC `caveats` in finance tool output (pending decision).
+3. Live end-to-end demo query once quota is back: check the "Agent steps" trace with real deepagents messages.
+4. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).
