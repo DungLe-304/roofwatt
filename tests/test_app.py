@@ -17,8 +17,8 @@ RANKING = {"city": "Houston", "propertyType": "Office", "totalMatches": 185, "ra
 
 
 def shown(at):
-	"""(roof images, ranked tables, maps) currently on the page."""
-	return len(at.get("image")), len(at.dataframe), len(at.get("deck_gl_json_chart"))
+	"""(roof images, ranked tables, maps, tool traces, detail metrics) currently on the page."""
+	return (len(at.get("image")), len(at.dataframe), len(at.get("deck_gl_json_chart")), len(at.expander), len(at.metric))
 
 
 class FakeAgent:
@@ -32,6 +32,8 @@ class FakeAgent:
 		if not first_turn:
 			return {"messages": [AIMessage("You're welcome.")]}
 		return {"messages": [
+			AIMessage("", tool_calls=[{"name": "rankBuildings", "args": {"city": "Houston"}, "id": "c0"},
+				{"name": "getRoofImage", "args": {"buildingId": "240117"}, "id": "c1"}]),
 			ToolMessage(content=json.dumps(RANKING), name="rankBuildings", tool_call_id="c0"),
 			ToolMessage(content=f'{{"buildingId": "240117", "imagePath": "{self.image_path}"}}', name="getRoofImage", tool_call_id="c1"),
 			AIMessage("Top building: 240117."),
@@ -50,11 +52,13 @@ def test_reply_and_roof_image_are_shown_and_kept_in_history(tmp_path, monkeypatc
 	at.chat_input[0].set_value("pitch the top building").run()
 	assert not at.exception and not at.error
 	assert any("Top building: 240117." in m.value for m in at.markdown)
-	assert shown(at) == (1, 1, 1)
+	assert shown(at) == (1, 1, 1, 1, 8)  # the roof image appears once, in the detail panel
 	assert at.dataframe[0].value["Address"].tolist() == ["5959 Corporate Dr"]
+	assert at.expander[0].label == "Agent steps · 2 tool calls"
+	assert {m.label: m.value for m in at.metric}["Payback"] == "10.93 yr"  # rank 1 is detailed by default
 	assert fake.received == [{"role": "user", "content": "pitch the top building"}]
 
 	at.chat_input[0].set_value("thanks").run()  # rerun: the earlier image, map and table stay in the history
 	assert not at.exception and not at.error
-	assert shown(at) == (1, 1, 1)
+	assert shown(at) == (1, 1, 1, 1, 8)
 	assert fake.received[-2:] == [{"role": "assistant", "content": "Top building: 240117."}, {"role": "user", "content": "thanks"}]

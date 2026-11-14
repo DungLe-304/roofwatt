@@ -6,10 +6,13 @@ import streamlit as st
 import streamlit_hotkeys as hotkeys
 
 from agent.agent import createRoofWattAgent
-from agent.results import rankingResult, roofImages
+from agent.results import rankingResult, roofImages, toolTrace
+from agent.tools import getRoofImage
 from config import loadSettings
-from data.costar_client import CostarClient
+from data.costar_client import CostarClient, getBuilding
+from ui.detail import selectedIndex, showDetail
 from ui.ranking import addCoordinates, showRanking
+from ui.trace import showTrace
 
 appRoot = Path(__file__).resolve().parent
 pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
@@ -150,9 +153,7 @@ if __name__ == "__main__":
 	for message in st.session_state.chatMessages:
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
-			if message.get("ranking"):
-				showRanking(message["ranking"])
-			showRoofImages(message.get("images", []))
+			showAssistantExtras(message, key = f"ranking-{index}")
 
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
