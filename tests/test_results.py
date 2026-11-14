@@ -1,8 +1,10 @@
-"""Reading roof images out of an agent run's message history."""
+"""Reading roof images and the ranking out of an agent run's message history."""
+
+import json
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from agent.results import roofImages
+from agent.results import rankingResult, roofImages
 
 
 def tool_message(name, content, call_id="c1"):
@@ -33,3 +35,30 @@ def test_skips_errors_missing_files_duplicates_and_bad_json(tmp_path):
 		tool_message("getRoofImage", f'{{"buildingId": "3", "imagePath": "{image}"}}'),
 	]
 	assert roofImages(messages) == [("3", str(image))]
+
+
+def ranking(ranked, **extra):
+	return json.dumps({"city": "Houston", "propertyType": "Office", "totalMatches": 3, "rankedCount": len(ranked),
+		"excluded": {"errors": [], "belowMinimumSize": 0, "noPayback": 0}, "ranked": ranked, "assumptions": {}} | extra)
+
+
+def test_ranking_result_is_the_last_successful_rank_call():
+	first, last = [{"rank": 1, "buildingId": "1"}], [{"rank": 1, "buildingId": "2"}]
+	messages = [
+		tool_message("rankBuildings", ranking(first)),
+		tool_message("rankBuildings", ranking(last), "c2"),
+		tool_message("rankBuildings", '{"error": "no buildings match"}', "c3"),
+		tool_message("rankBuildings", "not json", "c4"),
+		AIMessage("done"),
+	]
+	assert rankingResult(messages)["ranked"] == last
+
+
+def test_ranking_result_is_none_without_a_ranked_list():
+	messages = [
+		HumanMessage("hi"),
+		tool_message("computeFinancials", ranking([{"rank": 1, "buildingId": "1"}])),
+		tool_message("rankBuildings", ranking([]), "c2"),
+		AIMessage("hello"),
+	]
+	assert rankingResult(messages) is None
