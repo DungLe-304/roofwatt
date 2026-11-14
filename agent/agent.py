@@ -1,5 +1,5 @@
-from deepagents import Agent, create_deep_agent
-from agent.tools import getBuilding, searchBuildings
+from deepagents import create_deep_agent
+from agent.tools import roofWattTools
 from dotenv import load_dotenv
 from textwrap import dedent
 
@@ -26,4 +26,4 @@ def createRoofWattAgent():
 		13. Analyze no more than 20 buildings deeply in one request.
 		14. Finish with a clear answer to the user's request and state any analysis that cannot yet be completed.
 		""").strip()
-	return create_deep_agent(model = "google_genai:gemini-4-hydrogen", system_prompt=systemPrompt, tools=[searchBuildings, getBuilding])
+	return create_deep_agent(model = "google_genai:gemini-4-hydrogen", system_prompt = systemPrompt, tools = roofWattTools)
