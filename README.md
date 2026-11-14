@@ -14,4 +14,4 @@ cp .env.example .env   # then fill in your keys
 streamlit run app.py
 ```
 
-See `CLAUDE.md` for the full project plan.
+See `docs/PROJECT_PLAN.md` for the full project plan and `AGENTS.md` for agent handoff notes.

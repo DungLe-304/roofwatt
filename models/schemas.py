@@ -1,1 +1,1 @@
-# TODO: see CLAUDE.md
+# TODO: see docs/PROJECT_PLAN.md

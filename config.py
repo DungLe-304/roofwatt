@@ -1,4 +1,4 @@
-"""All financial and physical assumptions live here. Every value needs a source (see CLAUDE.md section 4)."""
+"""All financial and physical assumptions live here. Every value needs a source (see docs/PROJECT_PLAN.md section 4)."""
 
 USABLE_FACTOR = 0.6  # assumption: share of roof footprint usable for panels (tier 1)
 POWER_DENSITY_KW_PER_M2 = None  # TODO: look up and cite
