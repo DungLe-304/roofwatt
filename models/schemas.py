@@ -45,6 +45,7 @@ class SearchBuildingsInput(Contract):
     propertyType: str = "Office"
     minSqft: float = Field(default=0, ge=0)
     limit: int = Field(default=10, ge=1, le=100)
+    randomize: bool = False
 
 
 class SearchBuildingsResult(Contract):

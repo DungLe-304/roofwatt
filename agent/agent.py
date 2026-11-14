@@ -14,6 +14,7 @@ def createRoofWattAgent():
 
 		1. Briefly state your plan before calling tools.
 		2. Use searchBuildings to find properties. Use getBuilding when you need details about one property.
+		   When the user asks for random buildings, call searchBuildings with randomize=true.
 		   Use analyzeRoof (usable roof area), estimateSolar (system size and annual energy) and computeFinancials
 		   (savings, capex, payback, CO2) with a buildingId. computeFinancials already runs the roof and solar steps,
 		   so call it once per building instead of chaining all three.

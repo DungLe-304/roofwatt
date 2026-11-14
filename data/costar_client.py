@@ -6,6 +6,7 @@ Search matches primary-address city and state, not the broader research market.
 
 import csv
 import json
+import random
 from pathlib import Path
 
 from models.schemas import Building, SearchBuildingsInput, SearchBuildingsResult
@@ -92,15 +93,17 @@ class CostarClient:
 	def allBuildings(self, city: str, propertyType: str = "Office", minSqft: float = 0) -> list[Building]:
 		return [self.mapBuilding(record) for record in self.iterMatches(city, propertyType, minSqft)]
 
-	def searchBuildings(self, city: str, propertyType: str = "Office", minSqft: float = 0, limit: int = 10) -> SearchBuildingsResult:
-		query = SearchBuildingsInput(city=city, propertyType=propertyType, minSqft=minSqft, limit=limit)
-		buildings = []
-		totalMatches = 0
-		for record in self.iterMatches(query.city, query.propertyType, query.minSqft):
-			totalMatches += 1
-			if len(buildings) < query.limit:
-				buildings.append(self.mapBuilding(record))
-		warnings = ["Results follow dataset order; they are not ranked by solar profitability."]
+	def searchBuildings(self, city: str, propertyType: str = "Office", minSqft: float = 0, limit: int = 10, randomize: bool = False) -> SearchBuildingsResult:
+		normalizedPropertyType = propertyType.strip() if propertyType else "Office"
+		query = SearchBuildingsInput(city=city, propertyType=normalizedPropertyType or "Office", minSqft=minSqft, limit=limit, randomize=randomize)
+		matchingRecords = list(self.iterMatches(query.city, query.propertyType, query.minSqft))
+		totalMatches = len(matchingRecords)
+		if query.randomize:
+			selectedRecords = random.SystemRandom().sample(matchingRecords, min(query.limit, totalMatches))
+		else:
+			selectedRecords = matchingRecords[:query.limit]
+		buildings = [self.mapBuilding(record) for record in selectedRecords]
+		warnings = ["Results were selected randomly and are not ranked by solar profitability." if query.randomize else "Results follow dataset order; they are not ranked by solar profitability."]
 		if totalMatches < query.limit:
 			warnings.append(f"Only {totalMatches} buildings match the requested filters.")
 		return SearchBuildingsResult(buildings=buildings, totalMatches=totalMatches, warnings=warnings)
@@ -112,22 +115,13 @@ class CostarClient:
 		raise LookupError(f"Building {buildingId} is absent from the CoStar extract.")
 
 
-def searchBuildings(city: str, propertyType: str = "Office", minSqft: float = 0, limit: int = 10) -> SearchBuildingsResult:
-	"""_summary_
+def searchBuildings(city: str, propertyType: str = "Office", minSqft: float = 0, limit: int = 10, randomize: bool = False) -> SearchBuildingsResult:
+	"""Search existing CoStar properties by city, type, and minimum gross area.
 
-	Args:
-		city (str): _description_
-		propertyType (str, optional): _description_. Defaults to "Office".
-		minSqft (float, optional): _description_. Defaults to 0.
-		limit (int, optional): _description_. Defaults to 10.
-
-	Returns:
-		SearchBuildingsResult: _description_
-
-	Search existing CoStar properties by city, property type, and minimum gross building area.
-	Return up to limit records in dataset order; results are not ranked by solar profitability.
+	Set randomize to true to sample matching properties randomly. A blank propertyType defaults to Office.
+	Results are never ranked by solar profitability.
 	"""
-	return CostarClient().searchBuildings(city, propertyType, minSqft, limit)
+	return CostarClient().searchBuildings(city, propertyType, minSqft, limit, randomize)
 
 
 def getBuilding(buildingId: str) -> Building:
