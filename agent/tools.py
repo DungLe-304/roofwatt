@@ -20,4 +20,4 @@ from models.solar import estimate_solar
 
 toolErrors = (LookupError, ValueError, RuntimeError, requests.RequestException)
 
-roofWattTools = [searchBuildingsData, getBuildingData, analyzeRoof, estimateSolar, computeFinancials, rankBuildings]
+roofWattTools = [searchBuildingsData, getBuildingData]
