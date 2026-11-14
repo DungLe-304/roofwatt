@@ -63,8 +63,9 @@ class CostarClient:
 			warnings.append("Coordinates are incomplete.")
 		return Building(buildingId=str(record["id"]), propertyType=self.propertyTypes.get(record.get("propertyType"), "Unknown"), address=street, city=address.get("city"), state=address.get("state"), lat=address.get("latitude"), lon=address.get("longitude"), buildingSqft=grossArea, buildingAreaSource="grossBuildingAreaSquareFeet" if grossArea is not None else None, rentableSqft=rentableArea if rentableArea is not None and rentableArea > 0 else None, stories=stories if stories is not None and stories > 0 else None, yearBuilt=next(iter(builtYears)) if len(builtYears) == 1 else None, matterportModelIds=self.matterportIds.get(str(record["id"]), []), dataWarnings=warnings)
 
-	def searchBuildings(self, city: str, propertyType: str = "Office", minSqft: float = 0, limit: int = 10) -> SearchBuildingsResult:
-		query = SearchBuildingsInput(city=city, propertyType=propertyType, minSqft=minSqft, limit=limit)
+	def iterMatches(self, city: str, propertyType: str = "Office", minSqft: float = 0):
+		"""Yield every existing property record matching the filters, in dataset order, without a limit."""
+		query = SearchBuildingsInput(city=city, propertyType=propertyType, minSqft=minSqft)
 		cityKey = query.city.strip().casefold()
 		if cityKey not in supportedCities:
 			raise ValueError("Supported cities: Houston and Los Angeles.")
@@ -73,9 +74,7 @@ class CostarClient:
 		typeKey = query.propertyType.strip().casefold()
 		if typeKey not in typeCodes:
 			raise ValueError(f"Unknown property type: {query.propertyType}. Use a documented CoStar property type.")
-		buildings = []
 		seenIds = set()
-		totalMatches = 0
 		for record in self.iterRecords():
 			address = record.get("primaryAddress") or {}
 			if (address.get("city") or "").casefold() != cityName.casefold() or (address.get("state") or "").upper() != stateName:
@@ -88,6 +87,16 @@ class CostarClient:
 			if record["id"] in seenIds:
 				continue
 			seenIds.add(record["id"])
+			yield record
+
+	def allBuildings(self, city: str, propertyType: str = "Office", minSqft: float = 0) -> list[Building]:
+		return [self.mapBuilding(record) for record in self.iterMatches(city, propertyType, minSqft)]
+
+	def searchBuildings(self, city: str, propertyType: str = "Office", minSqft: float = 0, limit: int = 10) -> SearchBuildingsResult:
+		query = SearchBuildingsInput(city=city, propertyType=propertyType, minSqft=minSqft, limit=limit)
+		buildings = []
+		totalMatches = 0
+		for record in self.iterMatches(query.city, query.propertyType, query.minSqft):
 			totalMatches += 1
 			if len(buildings) < query.limit:
 				buildings.append(self.mapBuilding(record))

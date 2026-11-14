@@ -58,3 +58,10 @@ def testMalformedRecordReportsLine(client):
 	client.recordsPath.write_text("{}\n", encoding="utf-8")
 	with pytest.raises(ValueError, match="commercial-property.jsonl:1"):
 		client.searchBuildings("Houston")
+
+
+def testAllBuildingsReturnsEveryMatchWithoutLimit(client):
+	assert [building.buildingId for building in client.allBuildings("Houston", "Office")] == ["1", "2"]
+	assert [building.buildingId for building in client.allBuildings("Houston", "Office", minSqft=1)] == ["1"]
+	with pytest.raises(ValueError, match="Supported cities"):
+		client.allBuildings("Boston")
