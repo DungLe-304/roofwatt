@@ -19,13 +19,13 @@ st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layou
 with st.sidebar:
 	with st.form("propertyFilters"):
 		st.header("Property filters")
-		runSearch = st.form_submit_button("Search properties")
 		city = st.selectbox("City", ["Houston", "Los Angeles"], index = 0)
-		propertyType = st.selectbox("Property type", ["Office", "Retail", "Warehouse"], index = 0)
-		minGrossArea = st.number_input("Minimum gross area (sq ft)", min_value = 0, value = 10000, step = 1000)	
-		limit = st.number_input("Number of properties to display", min_value = 1, value = 10, step = 1)
-		randomize = st.checkbox("Randomize property selection", value = True)
+		propertyType = st.selectbox("Property type", ["Office", "Industrial", "GeneralRetail", "Flex", "Multifamily", "Hospitality"], index = 0)
+		minGrossArea = st.number_input("Minimum gross area (sq ft)", min_value = 0, value = 10000, step = 1000)
+		limit = st.number_input("Number of properties", min_value = 1, max_value = 20, value = 10, step = 1)
 		mode = st.radio("Mode", ["Search", "Rank"], index = 0, help = "Search mode finds properties that meet the criteria, while Rank mode ranks the properties by solar potential.")
+		randomize = st.checkbox("Randomize search results", value = False, disabled = mode == "Rank")
+		runSearch = st.form_submit_button("Search properties")
 
 hotkeys.activate([hotkeys.hk("scroll_bottom", "End", ctrl = True, prevent_default = True, help = "Scroll to the latest message")])
 
@@ -99,34 +99,53 @@ def showRoofImages(images):
 		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
 
 def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
-	if mode not in ["Search", "Rank"]:
-		raise ValueError("Invalid mode. Must be 'Search' or 'Rank'.")
+	filters = f"city={city}, propertyType={propertyType}, minimum gross area={minGrossArea} sq ft, limit={limit}"
 	if mode == "Search":
-		prompt = f"Find {limit} commercial properties in {city} that are {propertyType.lower()} buildings with a minimum gross area of {minGrossArea} square feet. "
-		if randomize:
-			prompt += "Randomize the selection of properties. "
-		if mode == "Rank":
-			prompt += "Rank the properties by solar potential. "
+		randomInstruction = "randomize=true" if randomize else "randomize=false"
+		return f"Use searchBuildings with {filters}, {randomInstruction}. Report returned facts and warnings. Do not rank these results."
+	if mode == "Rank":
+		return f"Use rankBuildings once with {filters}. Rank matching buildings by returned simple payback. Do not randomize or call computeFinancials one building at a time. Report exclusions and assumptions concisely."
+	raise ValueError("Mode must be Search or Rank.")
 
-		prompt += "Provide the results in a structured format with building ID, address, and any relevant details. Include aerial roof images for each property."
 
-	return prompt
-	
+def runAgentRequest(agent, requestText):
+	st.session_state.chatMessages.append({"role": "user", "content": requestText})
+	with st.chat_message("user"):
+		st.markdown(requestText)
 
-def rankingPrompt(city, propertyType, minGrossArea, limit, randomize):
-	prompt = f"Rank {limit} commercial properties in {city} that are {propertyType.lower()} buildings with a minimum gross area of {minGrossArea} square feet by solar potential. "
-	if randomize:
-		prompt += "Randomize the selection of properties. "
+	with st.chat_message("assistant"):
+		with st.spinner("Analyzing properties..."):
+			try:
+				history = buildAgentHistory(st.session_state.chatMessages)
+				result = agent.invoke({"messages": history})
+				responseText = extractText(result["messages"][-1].content)
+				images = roofImages(result["messages"])
+				ranking = rankingResult(result["messages"])
+				if ranking:
+					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
+				st.markdown(responseText)
+				if ranking:
+					showRanking(ranking)
+				showRoofImages(images)
+				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking})
+			except Exception as error:
+				errorMessage = str(error)
+				if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
+					st.error("Gemini quota is currently exhausted. Wait for the quota window to reset, then try again.")
+				else:
+					st.error(f"RoofWatt could not complete the request: {errorMessage}")
 
-	prompt += "Provide the results in a structured format with building ID, address, and any relevant details. Include aerial roof images for each property."
-
-	return prompt
+	scrollToBottom()
 
 if __name__ == "__main__":
 	agent = loadAgent()
 
 	if "chatMessages" not in st.session_state:
 		st.session_state.chatMessages = []
+
+	if st.sidebar.button("Clear conversation"):
+		st.session_state.chatMessages = []
+		st.rerun()
 
 	for message in st.session_state.chatMessages:
 		with st.chat_message(message["role"]):
@@ -137,35 +156,7 @@ if __name__ == "__main__":
 
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
-	if userPrompt:
-		st.session_state.chatMessages.append({"role": "user", "content": userPrompt})
-
-		with st.chat_message("user"):
-			st.markdown(userPrompt)
-
-		scrollToBottom()
-
-		with st.chat_message("assistant"):
-			with st.spinner("Analyzing properties..."):
-				try:
-					history = buildAgentHistory(st.session_state.chatMessages)
-					result = agent.invoke({"messages": history})
-
-					responseText = extractText(result["messages"][-1].content)
-					images = roofImages(result["messages"])
-					ranking = rankingResult(result["messages"])
-					if ranking:
-						ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
-					st.markdown(responseText)
-					if ranking:
-						showRanking(ranking)
-					showRoofImages(images)
-
-					st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking})
-				except Exception as error:
-					errorMessage = str(error)
-					if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
-						st.error("Gemini quota is currently exhausted. Wait for the quota window to reset, then try again. RoofWatt now sends one bounded request per question.")
-					else:
-						st.error(f"RoofWatt could not complete the request: {errorMessage}")
-					scrollToBottom()
+	if runSearch:
+		runAgentRequest(agent, buildSearchPrompt(city, propertyType, minGrossArea, int(limit), randomize, mode))
+	elif userPrompt:
+		runAgentRequest(agent, userPrompt)
