@@ -90,11 +90,13 @@ Build order step 2–3 of plan §6: schemas, then finance model + tests.
 
 ## Completed
 - Step 1: repo scaffold, `requirements.txt`, `.env.example`, `.gitignore` (commit `004236f`).
-- Created `AGENTS.md`; `CLAUDE.md` now only imports it; old brief moved to `docs/PROJECT_PLAN.md`.
+- Created `AGENTS.md`; `CLAUDE.md` now only imports it; old brief moved to `docs/PROJECT_PLAN.md` (commit `7797fba`).
+- Claude Code plugins enabled at project scope (`.claude/settings.json`): `commit-commands`, `feature-dev`
+  (official), `ui-ux-pro-max` (UI design), `andrej-karpathy-skills` (coding guidelines). Skills only, no hooks/MCP.
+  Claude Code only — Codex ignores them. Start a new session to load.
 
 ## Modified Files
-- `AGENTS.md` (new), `CLAUDE.md` (now `@AGENTS.md`), `docs/PROJECT_PLAN.md` (moved from `CLAUDE.md`)
-- `README.md`, `config.py`, all stub `.py` files: pointer `CLAUDE.md` → `docs/PROJECT_PLAN.md`
+- `.claude/settings.json` (new: enabled plugins + 2 extra marketplaces), `AGENTS.md` (this ledger)
 
 ## Known Issues
 - All modules are one-line TODO stubs; no tests exist yet.
