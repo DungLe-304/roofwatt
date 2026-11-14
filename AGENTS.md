@@ -154,7 +154,7 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 - Khoa: `bea18d2` chat scrollToBottom; `642af2b` token limits (`agent/agent.py`, `app.py`, `config.py`).
 - Assets cleanup: `assets/` now holds only `roofwatt-logo.svg`, `roofwatt-logo-square.svg`,
   `roofwatt-overview-concept.png` (poster concept). Old `RoofWatt solar power icon.png` and the draft
-  icon/overview files were deleted. `app.py` `page_icon` -> `assets/roofwatt-logo-square.svg` (was a missing PNG).
+  icon/overview files and Khoa's unused `Star.png`/`SolarPanel.png` were deleted. `app.py` `page_icon` -> `assets/roofwatt-logo-square.svg` (was a missing PNG).
 - Tests green again (60): `streamlit-hotkeys` installed in `.venv`; `test_config` lists Khoa's 4 new `agent*`
   Settings fields; `app.py` stores `images` on assistant messages again (merge `9b99b6c` dropped it, so roof
   images vanished from history after the next turn).
