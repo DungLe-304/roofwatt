@@ -161,11 +161,21 @@ def test_rank_unsupported_city_returns_error(monkeypatch):
 
 def test_get_roof_image_returns_path_or_error(fakes, monkeypatch, tmp_path):
 	image = tmp_path / "42.jpeg"
-	monkeypatch.setattr(tools, "get_roof_image", lambda building_id, lat, lon: image)
-	assert tools.getRoofImage("42") == {"buildingId": "42", "imagePath": str(image)}
+	calls = []
 
-	def rejected(building_id, lat, lon):
-		raise RuntimeError("Vexcel rejected the token (HTTP 401)")
+	def fake_image(building_id, lat, lon, *, extent_m):
+		calls.append(extent_m)
+		return image
+	monkeypatch.setattr(tools, "get_roof_image", fake_image)
+	assert tools.getRoofImage("42") == {"buildingId": "42", "imagePath": str(image)}
+	# footprint 100k ft² / 4 stories = ~2,323 m² -> side ~48 m; frame = 1.5x side, at least the 80 m minimum
+	assert calls == [80]
+	fakes["building"] = make_building(buildingSqft=400_000, stories=1)  # ~37,161 m² -> side ~193 m -> ~289 m
+	tools.getRoofImage("42")
+	assert calls[-1] == pytest.approx(1.5 * (400_000 * 0.092903) ** 0.5, abs=1)
+
+	def rejected(building_id, lat, lon, *, extent_m):
+		raise RuntimeError("Vexcel rejected VEXCEL_API_KEY (HTTP 401)")
 	monkeypatch.setattr(tools, "get_roof_image", rejected)
 	assert "401" in tools.getRoofImage("42")["error"]
 	fakes["building"] = make_building(lat=None)

@@ -28,14 +28,29 @@ def env(tmp_path, monkeypatch):
 
 
 def test_fetches_image_by_center_point_and_caches_it(env, tmp_path):
-	path = imagery.get_roof_image("b1", 29.71, -95.55, zoom=20, size_px=640)
+	path = imagery.get_roof_image("b1", 29.71, -95.55, extent_m=150, size_px=640)
 	assert path.read_bytes() == b"\xff\xd8jpeg-bytes"
 	assert path.suffix == ".jpeg" and path.is_relative_to(tmp_path)
 	url, params = env["calls"][0]
-	assert url == imagery.VEXCEL_EXTRACT_URL
-	assert (params["ycoordinate"], params["xcoordinate"]) == (29.71, -95.55)
-	assert (params["zoom"], params["width"], params["height"], params["EPSG"]) == (20, 640, 640, 4326)
-	assert params["authtoken"] == "test-token"
+	assert url == "https://api.vexcelgroup.com/v2/ortho/extract"
+	assert params["wkt"] == "POINT(-95.55 29.71)"  # WKT is lon lat
+	assert params["layer"] == "urban"
+	assert params["bbox-dimensions"] == "150,150"
+	assert params["destination-dimensions"] == "640,640,fit"
+	assert params["image-format"] == "jpeg"
+	assert params["api_key"] == "test-token"
+
+
+def test_extent_is_part_of_the_cache_key(env):
+	imagery.get_roof_image("b1", 29.71, -95.55, extent_m=150)
+	imagery.get_roof_image("b1", 29.71, -95.55, extent_m=300)
+	assert len(env["calls"]) == 2
+
+
+def test_no_coverage_raises(env):
+	env["response"] = FakeResponse(204, b"", "text/plain")
+	with pytest.raises(RuntimeError, match="no imagery"):
+		imagery.get_roof_image("b1", 29.71, -95.55)
 
 
 def test_second_call_is_served_from_cache(env):

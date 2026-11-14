@@ -1,9 +1,11 @@
 """Vexcel aerial (nadir orthomosaic) roof image for one building, cached on disk.
 
-Request format from Vexcel's "Extract Large Orthomosaic Tiles" announcement (ExtractOrthoImages, center point +
-zoom + pixel size, token as `authtoken`): https://vexceldata.com/stories/new-feature-for-api-extract-large-orthomosaic-tiles/
-Full reference is behind Vexcel's support login. Host and collection are unconfirmed: the token we have was
-rejected (HTTP 401) by api.gic.org and api.vexcelgroup.com on 2026-11-14.
+API: GET https://api.vexcelgroup.com/v2/ortho/extract, per Vexcel's OpenAPI spec
+(https://api.vexcelgroup.com/v2/api-docs/ortho, read 2026-11-14): `layer` (urban, urban-r, urban-g, wide-area, graysky),
+`wkt` (POINT(lon lat)), `bbox-dimensions=width,height` in meters around the point, `destination-dimensions=
+width,height,fit|fill` in pixels, `image-format` (jpeg/png/tiff). Auth: our VEXCEL_API_KEY is an API key, sent as
+the `api_key` query parameter (it is not a token: /auth/verify and the `token` parameter both return 401).
+Responses: 200 image, 204 no coverage, 401 bad key.
 """
 
 import os
@@ -13,24 +15,38 @@ import requests
 
 from data import cache
 
-VEXCEL_EXTRACT_URL = "https://api.gic.org/images/ExtractOrthoImages/bluesky-ultra"
+VEXCEL_EXTRACT_URL = "https://api.vexcelgroup.com/v2/ortho/extract"
+VEXCEL_LAYER = "urban"
 CACHE_NAMESPACE = "vexcel"
 
 
-def get_roof_image(building_id: str, lat: float, lon: float, *, zoom: int = 20, size_px: int = 640) -> Path:
-	"""Return the path of a cached or freshly downloaded image centered on (lat, lon). Raises RuntimeError."""
-	key = f"{building_id}_z{zoom}_{size_px}"
+def get_roof_image(building_id: str, lat: float, lon: float, *, extent_m: float = 150, size_px: int = 640) -> Path:
+	"""Return the path of a cached or freshly downloaded square image (extent_m wide, centered on lat/lon).
+
+	Raises RuntimeError on a missing/rejected key, no coverage, or any other non-image response.
+	"""
+	extent = round(extent_m)
+	key = f"{building_id}_{VEXCEL_LAYER}_{extent}m_{size_px}px"
 	cached = cache.find(CACHE_NAMESPACE, key)
 	if cached is not None:
 		return cached
-	token = os.getenv("VEXCEL_API_KEY")
-	if not token:
+	apiKey = os.getenv("VEXCEL_API_KEY")
+	if not apiKey:
 		raise RuntimeError("VEXCEL_API_KEY is not set (see .env.example)")
-	params = dict(ycoordinate=lat, xcoordinate=lon, zoom=zoom, width=size_px, height=size_px, EPSG=4326, authtoken=token)
-	response = requests.get(VEXCEL_EXTRACT_URL, params=params, timeout=30)
+	params = {
+		"layer": VEXCEL_LAYER,
+		"wkt": f"POINT({lon} {lat})",
+		"bbox-dimensions": f"{extent},{extent}",
+		"destination-dimensions": f"{size_px},{size_px},fit",
+		"image-format": "jpeg",
+		"api_key": apiKey,
+	}
+	response = requests.get(VEXCEL_EXTRACT_URL, params=params, timeout=60)
 	contentType = response.headers.get("content-type", "")
 	if response.status_code == 401:
-		raise RuntimeError("Vexcel rejected the token (HTTP 401); get a fresh token for VEXCEL_API_KEY")
+		raise RuntimeError("Vexcel rejected VEXCEL_API_KEY (HTTP 401)")
+	if response.status_code == 204:
+		raise RuntimeError(f"Vexcel has no imagery for {building_id} in layer '{VEXCEL_LAYER}' (HTTP 204)")
 	if response.status_code != 200 or not contentType.startswith("image/"):
 		raise RuntimeError(f"Vexcel returned HTTP {response.status_code} ({contentType}): {response.text[:200]}")
 	suffix = "." + contentType.split("/", 1)[1].split(";")[0].strip()

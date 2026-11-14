@@ -176,7 +176,10 @@ def getRoofImage(buildingId: str) -> dict:
 	def compute(building):
 		if building.lat is None or building.lon is None:
 			raise ValueError(f"{building.buildingId}: coordinates are missing, so no aerial image can be fetched")
-		return {"buildingId": building.buildingId, "imagePath": str(get_roof_image(building.buildingId, building.lat, building.lon))}
+		footprintM2 = _roof(building).usable_roof_m2 / config.USABLE_FACTOR
+		extentM = max(80.0, 1.5 * math.sqrt(footprintM2))  # frame the whole roof plus margin (display choice)
+		path = get_roof_image(building.buildingId, building.lat, building.lon, extent_m=extentM)
+		return {"buildingId": building.buildingId, "imagePath": str(path)}
 	return _safe(buildingId, compute)
 
 
