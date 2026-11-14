@@ -26,6 +26,10 @@ class Settings(BaseModel):
 	"""
 	agentMode: Literal["mock", "live"] = "mock"
 	modelName: str = "google_genai:gemini-4-hydrogen"  # LangChain id; langchain-google-genai reads GOOGLE_API_KEY
+	agentContextMessages: int = 6
+	agentContextCharacters: int = 10000
+	agentMaxOutputTokens: int = 1200
+	agentMaxRetries: int = 2
 
 def loadSettings() -> Settings:
 	configValues = dict(dotenvValues(rootPath / ".env"))

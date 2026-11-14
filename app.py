@@ -6,6 +6,7 @@ import streamlit_hotkeys as hotkeys
 
 from agent.agent import createRoofWattAgent
 from agent.results import roofImages
+from config import loadSettings
 
 st.set_page_config(page_title = "RoofWatt", page_icon = "assets/rooftwatt_icon.png", layout = "wide")
 hotkeys.activate([hotkeys.hk("scroll_bottom", "End", ctrl = True, prevent_default = True, help = "Scroll to the latest message")])
@@ -31,6 +32,28 @@ def extractText(content):
 		return "\n".join([f"{key}: {extractText(value)}" for key, value in content.items()])
 	else:
 		return str(content)
+
+def buildAgentHistory(messages):
+	settings = loadSettings()
+	remainingCharacters = settings.agentContextCharacters
+	boundedHistory = []
+
+	for message in reversed(messages[-settings.agentContextMessages:]):
+		content = str(message.get("content", ""))
+		if not content or remainingCharacters <= 0:
+			continue
+
+		if len(content) > remainingCharacters:
+			truncationNotice = "\n[Earlier content truncated]"
+			if remainingCharacters > len(truncationNotice):
+				content = content[:remainingCharacters - len(truncationNotice)] + truncationNotice
+			else:
+				content = content[:remainingCharacters]
+
+		boundedHistory.append({"role": message["role"], "content": content})
+		remainingCharacters -= len(content)
+
+	return list(reversed(boundedHistory))
 
 def scrollToBottom():
 	componentKey = time.time_ns()
@@ -93,8 +116,7 @@ if __name__ == "__main__":
 		with st.chat_message("assistant"):
 			with st.spinner("Analyzing properties..."):
 				try:
-					result = agent.invoke({"messages": st.session_state.chatMessages})
-					history = [{"role": message["role"], "content": message["content"]} for message in st.session_state.chatMessages]
+					history = buildAgentHistory(st.session_state.chatMessages)
 					result = agent.invoke({"messages": history})
 
 					responseText = extractText(result["messages"][-1].content)
@@ -104,5 +126,9 @@ if __name__ == "__main__":
 
 					st.session_state.chatMessages.append({"role": "assistant", "content": responseText})
 				except Exception as error:
-					st.error(f"RoofWatt could not complete the request: {error}")
+					errorMessage = str(error)
+					if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
+						st.error("Gemini quota is currently exhausted. Wait for the quota window to reset, then try again. RoofWatt now sends one bounded request per question.")
+					else:
+						st.error(f"RoofWatt could not complete the request: {errorMessage}")
 					scrollToBottom()

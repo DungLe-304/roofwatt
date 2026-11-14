@@ -2,6 +2,7 @@ from deepagents import create_deep_agent
 from agent.tools import roofWattTools
 from config import loadSettings
 from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
 from textwrap import dedent
 
 load_dotenv()
@@ -34,8 +35,14 @@ systemPrompt = dedent("""
 		12. Do not hide assumptions, missing fields, source limitations, or tool warnings.
 		13. Outside rankBuildings, analyze no more than 20 buildings individually in one request.
 		14. Finish with a clear answer to the user's request and state any analysis that cannot yet be completed.
+		15. Keep the final response concise and under 800 words unless the user explicitly requests more detail.
+		16. Present building lists as compact tables. Do not repeat shared warnings, unknown fields, or Matterport model IDs unless requested.
 		""").strip()
 
 
 def createRoofWattAgent():
-	return create_deep_agent(model = loadSettings().modelName, system_prompt = systemPrompt, tools = roofWattTools)
+	settings = loadSettings()
+	modelName = settings.modelName.split(":", 1)[-1]
+	model = ChatGoogleGenerativeAI(model = modelName, max_output_tokens = settings.agentMaxOutputTokens, max_retries = settings.agentMaxRetries)
+
+	return create_deep_agent(model = model, system_prompt = systemPrompt, tools = roofWattTools)
