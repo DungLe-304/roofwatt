@@ -45,9 +45,9 @@ def estimate_solar(building_id: str, lat: float, lon: float, system_kw: float, *
 
 
 def _fetch(params: dict) -> dict:
-    api_key = os.getenv("NREL_API_KEY")
+    api_key = os.getenv("NLR_API_KEY")
     if not api_key:
-        raise RuntimeError("NREL_API_KEY is not set (see .env.example)")
+        raise RuntimeError("NLR_API_KEY is not set (see .env.example)")
     for attempt in range(MAX_ATTEMPTS):
         resp = requests.get(PVWATTS_URL, params={**params, "api_key": api_key}, timeout=30)
         if resp.status_code != 429 or attempt == MAX_ATTEMPTS - 1:

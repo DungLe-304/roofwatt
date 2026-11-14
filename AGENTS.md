@@ -107,18 +107,26 @@ Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkp
 - Step 6: `models/roof.py` `estimate_roof(building, *, usable_factor) -> RoofResult` (tier 1). Uses `footprint_m2`,
   else `building_sqft / stories * 0.092903`; raises `ValueError` if neither is available (caller skips the building).
   `tests/test_roof.py`: 6 tests (TDD). Full suite: 16 passing.
-- Env: `.env.example` restored (names only; `.env` holds real keys, gitignored). Key var is `NREL_API_KEY`.
+- Env: `.env.example` restored (names only; `.env` holds real keys, gitignored). Key var is `NLR_API_KEY` (NREL renamed to NLR).
   `config.py` calls `load_dotenv(<repo>/.env, override=False)`, so any module importing `config` gets keys
   without relying on VS Code's `python.terminal.useEnvFile`.
+- `config.py` filled with cited sources (verified 2026-11-14): power density 0.211 kW/m² module (DOE 2025Q1)
+  × 0.70 module/roof (Gagnon 2016 T1) = 0.1477; tilt 15° (Gagnon T1); rate $0.0856 (EIA EPA T2.10, TX 2025);
+  $1.98/W (DOE 2025Q1 MMP); ITC 30% (§48E); grid 733.862 lb/MWh → 0.3329 kg/kWh (eGRID2023 ERCT).
+  Live sanity run (hypothetical 100k ft², 4 stories, Houston): 206 kW, 289 MWh/yr, payback 11.5 yr, 96 t CO₂/yr.
+- Khoa (`f822a22`, merged into `main`): CoStar extract adapter `data/costar_client.py` (local JSONL, LFS),
+  pydantic `models/schemas.py` (camelCase + snake_case aliases/properties), `config.Settings`. 21 tests pass.
+  Real-data run: 185 Houston offices, all have sqft/stories/lat-lon (no footprint); 12 run through
+  roof → PVWatts → finance OK (payback 11.05–11.78 yr).
 
 ## Modified Files
-- `models/roof.py`, `tests/test_roof.py` (new), `.env.example` (restored), `config.py` (load_dotenv), `AGENTS.md`
+- `models/roof.py`, `tests/test_roof.py` (new), `.env.example` (restored), `config.py` (load_dotenv + sourced values, merged with Khoa's `Settings`), `models/solar.py` +
+  `tests/test_solar.py` (`NLR_API_KEY`), `CLAUDE.md` (restored `@AGENTS.md`), `AGENTS.md`
 
 ## Known Issues
-- `config.py`: `POWER_DENSITY_KW_PER_M2`, `TILT_DEG`, `ELECTRICITY_RATE_USD_PER_KWH`, `COST_PER_WATT_USD`,
-  `INCENTIVE_PCT`, `GRID_EF_KG_PER_KWH` are `None` — need cited sources before finance runs on real data.
+- `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
+  EIA rate is an all-in average (incl. demand charges); eGRID uses total-output rate, not marginal.
 - CoStar/Vexcel API shapes unknown until toolkit docs are read; footprint field may be missing.
-- `TILT_DEG` is `None`: callers of `estimate_solar` have no sourced tilt yet (smoke test used 10° ad hoc).
 - PVWatts cache lives in `models/solar.py`; `data/cache.py` (CoStar/Vexcel) may absorb it later.
 - `requirements.txt` is unpinned; no LLM provider package (`langchain-anthropic`/`langchain-openai`) listed yet.
 - Ranking (drop < 50 kW, sort by payback) not implemented yet; it should also drop `inf` payback rows
@@ -127,8 +135,16 @@ Build order step 5 of plan §6 (CoStar/Vexcel clients, Khoa), then step-7 checkp
 - `simple_payback_yr` can be `math.inf` → `json.dumps` emits non-standard `Infinity`; convert before caching/tool output.
 - `agent/tools.py` `compute_financials` wrapper must inject the `config.py` values (plan §5 signature differs).
 - MASTER.md suggests Google Fonts (Fira); not used, to keep the demo offline-safe.
+- `agent/agent.py` fails on import: `deepagents` 0.7.38 has no `Agent`. Model id `google_genai:gemini-4-hydrogen`
+  conflicts with `Settings.modelName = "claude-sonnet-5-5"`; `agent/tools.py` builds an agent instead of tool wrappers.
+- PVWatts key is `NLR_API_KEY` (`.env`, `.env.example`, `models/solar.py`); `config.Settings` still expects
+  `pvwattsApiKey` (Khoa's file) — align it.
+- Tier-1 payback is nearly identical across Houston (only the PVWatts weather cell varies), so "best payback"
+  ranking is mostly noise; ranking needs a real differentiator (e.g. size/CO₂, rate or cost by size).
+- Repo is PUBLIC and now contains the CoStar extract (`commercial-properties.csv`, `data/*.jsonl`): check
+  CoStar data terms before submission. Cloning needs `git lfs`.
 
 ## Immediate Next Steps
-1. Tony: fill `config.py` TODO values with cited sources (`TILT_DEG` and `POWER_DENSITY_KW_PER_M2` first).
-2. Khoa: read CoStar toolkit docs → `data/costar_client.py` / `data/imagery.py` (mocks first).
-3. Step-7 checkpoint: one Houston building end-to-end.
+1. Khoa: read CoStar toolkit docs → `data/costar_client.py` / `data/imagery.py` (mocks first).
+2. Step-7 checkpoint: one real CoStar Houston building end-to-end (models chain already works on a hypothetical one).
+3. Ranking helper (drop < `MIN_SYSTEM_KW`, `inf` payback, `ValueError` buildings; sort payback asc, CO₂ desc).

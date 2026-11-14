@@ -28,7 +28,7 @@ def calls(monkeypatch, tmp_path):
     """Queue of fake responses; records request params. Cache goes to tmp_path."""
     monkeypatch.setattr(solar, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(solar.time, "sleep", lambda s: None)
-    monkeypatch.setenv("NREL_API_KEY", "test-key")
+    monkeypatch.setenv("NLR_API_KEY", "test-key")
     state = {"responses": [], "params": []}
 
     def fake_get(url, params, timeout):
@@ -84,6 +84,6 @@ def test_api_error_list_raises(calls):
 
 
 def test_missing_api_key_raises_clear_error(calls, monkeypatch):
-    monkeypatch.delenv("NREL_API_KEY")
-    with pytest.raises(RuntimeError, match="NREL_API_KEY"):
+    monkeypatch.delenv("NLR_API_KEY")
+    with pytest.raises(RuntimeError, match="NLR_API_KEY"):
         solar.estimate_solar("b1", 29.76, -95.37, 100, tilt_deg=10)
