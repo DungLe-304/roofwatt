@@ -1,4 +1,5 @@
-from deepagents import create_deep_agent
-from data.costar_client import searchBuildings as searchBuildingsData, getBuilding as getBuildingData
+from data.costar_client import getBuilding as getBuildingData
+from data.costar_client import searchBuildings as searchBuildingsData
 
-agent = create_deep_agent(model = "google_genai:gemini-4-hydrogen", tools=[searchBuildingsData, getBuildingData],)
+
+roofWattTools = [searchBuildingsData, getBuildingData]
