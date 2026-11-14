@@ -1,8 +1,9 @@
-"""Tools exposed to the RoofWatt agent.
+"""Tool functions exposed to RoofWatt's model, including locally hosted Ollama models.
 
 Each analysis tool takes only a buildingId and recomputes the chain below it (CoStar -> roof -> PVWatts ->
 finance; PVWatts responses are cached), so the model never copies numbers between tools. Failures come back
-as {"buildingId", "error"} so the agent can report them and continue with other buildings.
+as {"buildingId", "error"} so the agent can report them and continue with other buildings. Keep public tool
+functions' docstrings specific: the model uses them to decide when and how to call each tool.
 """
 
 import math

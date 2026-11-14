@@ -20,6 +20,7 @@ pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
 st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "expanded")
 
 with st.sidebar:
+	checkGemini = st.checkbox("Check Gemini first; use Ollama if quota is exhausted", value = False, help = "Sends one short availability request when the agent is initialized. Later Gemini quota errors also switch this session to Ollama.")
 	with st.form("propertyFilters"):
 		st.header("Property filters")
 		city = st.selectbox("City", ["Houston", "Los Angeles"], index = 0)
@@ -36,8 +37,8 @@ st.title("RoofWatt")
 st.caption("A commercial solar analysis agent for properties in Houston and Los Angeles.")
 
 @st.cache_resource
-def loadAgent():
-	return createRoofWattAgent()
+def loadAgent(checkGemini):
+	return createRoofWattAgent(pingGemini = checkGemini)
 
 def extractText(content):
 	if isinstance(content, str):
@@ -141,7 +142,7 @@ def runAgentRequest(agent, requestText):
 	scrollToBottom()
 
 if __name__ == "__main__":
-	agent = loadAgent()
+	agent = loadAgent(checkGemini)
 
 	if "chatMessages" not in st.session_state:
 		st.session_state.chatMessages = []

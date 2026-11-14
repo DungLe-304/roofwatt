@@ -3,6 +3,7 @@ from agent.tools import roofWattTools
 from config import loadSettings
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from textwrap import dedent
 
 load_dotenv()
@@ -40,9 +41,46 @@ systemPrompt = dedent("""
 		""").strip()
 
 
-def createRoofWattAgent():
-	settings = loadSettings()
-	modelName = settings.modelName.split(":", 1)[-1]
-	model = ChatGoogleGenerativeAI(model = modelName, max_output_tokens = settings.agentMaxOutputTokens, max_retries = settings.agentMaxRetries)
+fallbackModelName = "qwen3.5:4b"
 
-	return create_deep_agent(model = model, system_prompt = systemPrompt, tools = roofWattTools)
+
+def isResourceExhausted(error):
+	errorText = str(error).upper()
+	return "RESOURCE_EXHAUSTED" in errorText or "429" in errorText
+
+
+class QuotaFallbackAgent:
+	def __init__(self, primaryAgent, localAgent):
+		self.primaryAgent = primaryAgent
+		self.localAgent = localAgent
+		self.useLocalModel = False
+
+	def invoke(self, state):
+		if self.useLocalModel:
+			return self.localAgent.invoke(state)
+		try:
+			return self.primaryAgent.invoke(state)
+		except Exception as error:
+			if not isResourceExhausted(error):
+				raise
+			self.useLocalModel = True
+			return self.localAgent.invoke(state)
+
+
+def createRoofWattAgent(pingGemini = False):
+	settings = loadSettings()
+	localModel = ChatOllama(model = fallbackModelName, num_ctx = settings.agentContextCharacters, num_predict = settings.agentMaxOutputTokens)
+	localAgent = create_deep_agent(model = localModel, system_prompt = systemPrompt, tools = roofWattTools)
+	geminiModel = ChatGoogleGenerativeAI(model = settings.modelName.split(":", 1)[-1], max_output_tokens = settings.agentMaxOutputTokens, max_retries = settings.agentMaxRetries)
+	geminiAgent = create_deep_agent(model = geminiModel, system_prompt = systemPrompt, tools = roofWattTools)
+	fallbackAgent = QuotaFallbackAgent(geminiAgent, localAgent)
+
+	if pingGemini:
+		try:
+			geminiModel.invoke("Reply with OK only.")
+		except Exception as error:
+			if not isResourceExhausted(error):
+				raise
+			fallbackAgent.useLocalModel = True
+
+	return fallbackAgent
