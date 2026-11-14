@@ -111,7 +111,7 @@ def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
 		prompt += "Provide the results in a structured format with building ID, address, and any relevant details. Include aerial roof images for each property."
 
 	return prompt
-    
+	
 
 def rankingPrompt(city, propertyType, minGrossArea, limit, randomize):
 	prompt = f"Rank {limit} commercial properties in {city} that are {propertyType.lower()} buildings with a minimum gross area of {minGrossArea} square feet by solar potential. "
