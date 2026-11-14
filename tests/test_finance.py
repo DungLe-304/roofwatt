@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from models.finance import compute_financials
+from models.finance import compute_financials, cost_per_watt_for_size
 from models.schemas import SolarResult
 
 
@@ -41,3 +41,11 @@ def test_zero_energy_gives_infinite_payback():
                            incentive_pct=0.30, grid_ef_kg_per_kwh=0.4)
     assert math.isinf(r.simple_payback_yr)
     assert r.co2_tons_per_year == 0
+
+
+BINS = ((10, 3.6), (20, 3.1), (100, 2.8), (math.inf, 1.9))  # test table: (upper bound kW inclusive, $/W)
+
+
+@pytest.mark.parametrize("system_kw, expected", [(5, 3.6), (10, 3.6), (10.01, 3.1), (100, 2.8), (100.5, 1.9), (5_000, 1.9)])
+def test_cost_per_watt_steps_down_with_size(system_kw, expected):
+    assert cost_per_watt_for_size(system_kw, BINS) == expected

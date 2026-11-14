@@ -8,6 +8,7 @@ dependencies = [
     "langchain-google-genai>=4.5.0",
     "pydantic>=2.14.3",
     "python-dotenv>=1.2.4",
+    "requests>=2.32",
     "socksio>=1.0.0",
     "streamlit>=1.67.0",
 ]

@@ -1,9 +1,7 @@
 import streamlit as st
 from agent.agent import createRoofWattAgent
 
-import streamlit as st
-
-st.set_page_config(page_title = "RoofWatt", page_icon = "assets/rooftwatt_icon.png", layout = "wide")
+st.set_page_config(page_title = "RoofWatt", page_icon = "assets/RoofWatt solar power icon.png", layout = "wide")
 st.title("RoofWatt")
 st.caption("A commercial solar analysis agent for properties in Houston and Los Angeles.")
 

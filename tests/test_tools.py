@@ -56,8 +56,11 @@ def test_estimate_solar_sizes_system_and_calls_pvwatts_with_config(fakes):
 
 def test_compute_financials_uses_sourced_assumptions(fakes):
 	r = tools.computeFinancials("42")
-	# payback = $/W * 1000 * (1 - ITC) / (kWh/kW * $/kWh), independent of size
-	expected = config.COST_PER_WATT_USD * 1000 * (1 - config.INCENTIVE_PCT) / (KWH_PER_KW * config.ELECTRICITY_RATE_USD_PER_KWH)
+	# 100k ft² / 4 stories -> ~206 kW, in the LBNL 100-250 kW bin ($2.6/W)
+	assert 100 < r["systemKw"] <= 250
+	assert r["assumptions"]["costPerWattUsd"] == 2.6
+	# payback = $/W * 1000 * (1 - ITC) / (kWh/kW * $/kWh)
+	expected = 2.6 * 1000 * (1 - config.INCENTIVE_PCT) / (KWH_PER_KW * config.ELECTRICITY_RATE_USD_PER_KWH)
 	assert r["simplePaybackYr"] == pytest.approx(expected)
 	assert r["co2TonsPerYear"] == pytest.approx(r["annualKwh"] * config.GRID_EF_KG_PER_KWH / 1000)
 	assert r["systemKw"] > 0
@@ -99,12 +102,14 @@ def test_all_tools_are_registered():
 
 @pytest.fixture
 def city(monkeypatch):
-	"""Five matches: A and B tie on payback (same yield), C is slower, D is too small, E has no stories."""
+	"""Five matches. C (~617 kW) is in a cheaper $/W bin, so it pays back fastest despite lower yield.
+	A (~206 kW) and B (~247 kW) share the 100-250 kW bin and yield, so they tie; B avoids more CO2.
+	D is too small, E has no stories."""
 	yields = {"A": 1500, "B": 1500, "C": 1400, "D": 1500}
 	buildings = [
-		make_building(buildingId="C", buildingSqft=200_000),
 		make_building(buildingId="A", buildingSqft=100_000),
-		make_building(buildingId="B", buildingSqft=300_000),
+		make_building(buildingId="C", buildingSqft=300_000),
+		make_building(buildingId="B", buildingSqft=120_000),
 		make_building(buildingId="D", buildingSqft=4_000),
 		make_building(buildingId="E", stories=None),
 	]
@@ -124,9 +129,10 @@ def city(monkeypatch):
 
 def test_rank_sorts_by_payback_then_co2_and_ties_share_a_rank(city):
 	r = tools.rankBuildings("Houston", "Office", limit=10)
-	assert [(row["rank"], row["buildingId"]) for row in r["ranked"]] == [(1, "B"), (1, "A"), (3, "C")]
-	assert r["ranked"][0]["simplePaybackYr"] == r["ranked"][1]["simplePaybackYr"]
-	assert r["ranked"][0]["co2TonsPerYear"] > r["ranked"][1]["co2TonsPerYear"]
+	assert [(row["rank"], row["buildingId"]) for row in r["ranked"]] == [(1, "C"), (2, "B"), (2, "A")]
+	assert r["ranked"][1]["simplePaybackYr"] == r["ranked"][2]["simplePaybackYr"]
+	assert r["ranked"][1]["co2TonsPerYear"] > r["ranked"][2]["co2TonsPerYear"]
+	assert r["ranked"][0]["costPerWattUsd"] == 2.1
 	assert city == {"city": "Houston", "propertyType": "Office", "minSqft": 0}
 
 
@@ -142,7 +148,7 @@ def test_rank_reports_what_it_screened_and_excluded(city):
 
 def test_rank_respects_limit(city):
 	r = tools.rankBuildings("Houston", limit=2)
-	assert [row["buildingId"] for row in r["ranked"]] == ["B", "A"]
+	assert [row["buildingId"] for row in r["ranked"]] == ["C", "B"]
 	assert r["rankedCount"] == 3
 
 
