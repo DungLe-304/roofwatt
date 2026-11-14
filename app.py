@@ -12,7 +12,19 @@ from config import loadSettings
 appRoot = Path(__file__).resolve().parent
 pageIconPath = appRoot / "assets" / "Star.png"
 
-st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide")
+st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "expanded")
+
+with st.sidebar:
+	with st.form("propertyFilters"):
+		st.header("Property filters")
+		runSearch = st.form_submit_button("Search properties")
+		city = st.selectbox("City", ["Houston", "Los Angeles"], index = 0)
+		propertyType = st.selectbox("Property type", ["Office", "Retail", "Warehouse"], index = 0)
+		minGrossArea = st.number_input("Minimum gross area (sq ft)", min_value = 0, value = 10000, step = 1000)	
+		limit = st.number_input("Number of properties to display", min_value = 1, value = 10, step = 1)
+		randomize = st.checkbox("Randomize property selection", value = True)
+		mode = st.radio("Mode", ["Search", "Rank"], index = 0, help = "Search mode finds properties that meet the criteria, while Rank mode ranks the properties by solar potential.")
+
 hotkeys.activate([hotkeys.hk("scroll_bottom", "End", ctrl = True, prevent_default = True, help = "Scroll to the latest message")])
 
 st.title("RoofWatt")
@@ -66,18 +78,9 @@ def scrollToBottom():
 	<script>
 		const componentKey = "{componentKey}";
 
-		const scrollToBottom = () => {{
-			if (window.frameElement) {{
-				window.frameElement.scrollIntoView({{
-					behavior: "smooth",
-					block: "end"
-				}});
-			}}
-		}};
+		const scrollToBottom = () => {{if (window.frameElement) {{window.frameElement.scrollIntoView({{behavior: "smooth", block: "end"}});}}}};
 
-		window.requestAnimationFrame(() => {{
-			window.setTimeout(scrollToBottom, 150);
-		}});
+		window.requestAnimationFrame(() => {{window.setTimeout(scrollToBottom, 150);}});
 	</script>
 	"""
 
@@ -93,6 +96,30 @@ def showRoofImages(images):
 	for buildingId, imagePath in images:
 		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
 
+def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
+	if mode not in ["Search", "Rank"]:
+		raise ValueError("Invalid mode. Must be 'Search' or 'Rank'.")
+	if mode == "Search":
+		prompt = f"Find {limit} commercial properties in {city} that are {propertyType.lower()} buildings with a minimum gross area of {minGrossArea} square feet. "
+		if randomize:
+			prompt += "Randomize the selection of properties. "
+		if mode == "Rank":
+			prompt += "Rank the properties by solar potential. "
+
+		prompt += "Provide the results in a structured format with building ID, address, and any relevant details. Include aerial roof images for each property."
+
+	return prompt
+    
+
+def rankingPrompt(city, propertyType, minGrossArea, limit, randomize):
+	prompt = f"Rank {limit} commercial properties in {city} that are {propertyType.lower()} buildings with a minimum gross area of {minGrossArea} square feet by solar potential. "
+	if randomize:
+		prompt += "Randomize the selection of properties. "
+
+	prompt += "Provide the results in a structured format with building ID, address, and any relevant details. Include aerial roof images for each property."
+
+	return prompt
+
 if __name__ == "__main__":
 	agent = loadAgent()
 
@@ -107,10 +134,7 @@ if __name__ == "__main__":
 	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
 	if userPrompt:
-		st.session_state.chatMessages.append({
-			"role": "user",
-			"content": userPrompt
-		})
+		st.session_state.chatMessages.append({"role": "user", "content": userPrompt})
 
 		with st.chat_message("user"):
 			st.markdown(userPrompt)
