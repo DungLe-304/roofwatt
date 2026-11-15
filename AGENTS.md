@@ -41,6 +41,7 @@ ui/components.py    page blocks: sidebar + AI engine switch, query form, KPIs, r
 ui/styles.py        the only custom CSS (works in light and dark); theme in .streamlit/config.toml
 ui/ranking.py       pydeck 2D map (best rank green through lowest rank red) · ui/sunlight.py: local query dates
 ui/palette.py       Catppuccin Latte / Mocha tokens for custom surfaces and map layers
+static/fonts/       CaskaydiaCove Nerd Font Mono (SIL OFL), served via [server] enableStaticServing
 ui/detail.py, ui/trace.py, ui/whatif.py, ui/proposal.py   Building page, agent steps, what-if, letter split
 tools/prefetch_images.py   fill cache/vexcel/ for the top 20 before a demo
 index.md, schemas/, models/*.md   CoStar data kit docs
@@ -77,8 +78,8 @@ Ranking: drop `system_kw < 50`; sort payback ascending, tie-break CO₂ descendi
 - UI: Catppuccin Latte (light) / Mocha (dark), bundled CaskaydiaCove Nerd Font Mono, square rectangular corners.
   Preserve the five-page layout; no gradients or extra decoration. Keep custom CSS in `ui/styles.py`.
 - Never commit `.env`, keys, or `.agents/` / `.claude/skills/developing-with-streamlit` (symlinks into `.venv`).
-- Tony and Khoa own separate files. Remote has `main` (default) and `master`; push both:
-  `git push origin main && git push origin main:master`.
+- Tony and Khoa own separate files. `main` is the only working branch: branch from it and `git push origin main`.
+  `master` is paused (it holds a set-aside restyle, 87db0a8): do not push to it or merge it.
 
 ## Handoff Protocol
 Before ending a session, update Part 2: set `Last Active Agent`, add finished work to `Completed`, record issues,
@@ -89,7 +90,7 @@ and rewrite `Immediate Next Steps`. Keep Part 2 short: state what is true now, n
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-OpenAI Codex - 2026-11-15 (theme changes on local `main`, uncommitted)
+Claude Code (Opus 5.5) - 2026-11-15 (`main` official; `master` paused)
 
 ## Current Objective
 Demo-ready: the demo query works end-to-end in either AI engine, with results, 2D map, roof images and letter.
