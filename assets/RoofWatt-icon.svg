@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title id="title">RoofWatt solar energy app icon</title>
+  <rect width="1024" height="1024" rx="210" fill="#F7F9FC"/>
+  <path d="M 123 475 L 512 169 L 901 475 L 901 565 L 836 514 L 836 800 L 188 800 L 188 514 L 123 565 Z" fill="#0B1F3A"/>
+  <path d="M 512 262 L 753 451 L 753 717 L 271 717 L 271 451 Z" fill="#0B1F3A"/>
+  <rect x="305" y="424" width="185" height="130" rx="9" fill="#4DA3FF"/>
+  <rect x="534" y="424" width="185" height="130" rx="9" fill="#4DA3FF"/>
+  <rect x="305" y="588" width="185" height="130" rx="9" fill="#4DA3FF"/>
+  <rect x="534" y="588" width="185" height="130" rx="9" fill="#4DA3FF"/>
+  <path d="M 542 365 L 432 566 L 505 566 L 475 754 L 602 530 L 526 530 Z" fill="#0B1F3A" stroke="#0B1F3A" stroke-width="26" stroke-linejoin="round"/>
+  <path d="M 542 365 L 432 566 L 505 566 L 475 754 L 602 530 L 526 530 Z" fill="#FFB400" stroke="#FFB400" stroke-width="8" stroke-linejoin="round"/>
+</svg>
