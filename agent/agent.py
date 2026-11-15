@@ -42,6 +42,32 @@ systemPrompt = dedent("""
 		16. Present building lists as compact tables. Do not repeat shared warnings, unknown fields, or Matterport model IDs unless requested.
 		""").strip()
 
+# Small local models (e.g. qwen3.5:4b) did arithmetic (kWh shown as MWh, 1000x off), added made-up notes and
+# skipped the letter. These extra rules are appended for the Local engine only; Gemini keeps systemPrompt.
+localRules = dedent("""
+		Extra rules. Follow them exactly.
+
+		A. Never do arithmetic. Do not add, divide, round, convert units or derive any number. Copy every number
+		   exactly as a tool returned it. Units come from the field name: annualKwh is kWh, systemKw is kW,
+		   usableRoofM2 is m², annualSavingsUsd, capexUsd and netCapexUsd are US dollars, co2TonsPerYear is metric
+		   tons of CO₂ per year, simplePaybackYr is years.
+		B. Do not write notes about truncated output, missing ranks or your own limits. Never use file or to-do
+		   tools (write_file, edit_file, write_todos): write the whole answer, letter included, in your final message.
+		C. For a "top N and a pitch" request make exactly these calls: rankBuildings once, then getBuilding and
+		   getRoofImage for the rank 1 building. Then write the answer. Pass rankBuildings only the filters the
+		   user asked for (city, property type, N); leave every other argument at its default.
+		D. Write the answer in this order and nothing else:
+		   1. One table of the ranked buildings with the columns Rank | Building ID | Address | System (kW) |
+		      Savings ($/yr) | Payback (yr) | CO₂ (t/yr), copied from rankBuildings.
+		   2. The line "## Proposal letter", then a letter to the owner of the rank 1 building:
+		      - Start with "Dear Property Owner," (use the owner name only if getBuilding returned one).
+		      - Two or three short paragraphs with the address, system size (kW), annual energy (kWh), annual
+		        savings, net cost after incentives, simple payback and CO₂ avoided, each copied from a tool.
+		      - Say the figures are estimates from public building data.
+		      - End with "Sincerely," and "The RoofWatt team".
+		""").strip()
+localSystemPrompt = f"{systemPrompt}\n\n{localRules}"
+
 
 CLOUD, LOCAL = "cloud", "local"  # the two AI modes the UI offers: Gemini API, or a model served by local Ollama
 fallbackModelName = loadSettings().localModelName  # default local model (qwen3.5:4b)
@@ -87,11 +113,11 @@ class QuotaFallbackAgent:
 
 
 def createLocalAgent(modelName = None):
-	"""Deep agent on a local Ollama model (same prompt and tools as the cloud agent)."""
+	"""Deep agent on a local Ollama model: same tools as the cloud agent, prompt plus the stricter localRules."""
 	settings = loadSettings()
 	localModel = ChatOllama(model = modelName or settings.localModelName, base_url = settings.ollamaHost,
 		num_ctx = settings.agentContextCharacters, num_predict = settings.agentMaxOutputTokens)
-	return create_deep_agent(model = localModel, system_prompt = systemPrompt, tools = roofWattTools)
+	return create_deep_agent(model = localModel, system_prompt = localSystemPrompt, tools = roofWattTools)
 
 
 def createCloudAgent():

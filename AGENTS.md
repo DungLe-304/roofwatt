@@ -108,27 +108,31 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   picking Cloud again retries Gemini. Run is disabled with the reason when the chosen engine cannot run.
 - Latte / Mocha native appearance switching; locally served CaskaydiaCove fonts, square controls, matching map
   markers and tooltip. Existing layout preserved. Analyze and Assumptions checked visually in both appearances.
-- 109 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- Local engine works with `qwen3.5:4b` (Ollama): the demo query runs in ~90 s (rankBuildings, getBuilding,
+  getRoofImage) and drafts a letter. The Local engine gets `localRules` on top of `systemPrompt` (no arithmetic,
+  fixed calls, table + `## Proposal letter`, no file tools); numbers in two runs matched the tools exactly.
+- 110 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues
 - Rotate the NLR (PVWatts) key: it was printed in a session log before the redaction fix.
-- Gemini Free Tier: 20 requests/day; one demo query uses ~3–12. Local mode is untested with a real model (no Ollama
-  on Tony's machine); a 4B model may call tools less reliably.
+- Gemini Free Tier: 20 requests/day; one demo query uses ~3–12. The 4B local model still sometimes uses sales
+  wording ("excellent investment") against rule 7; its numbers are copied from tools.
 - Overpass (OSM) answered 429 / timed out: building footprints show only if `cache/osm-buildings/` was filled earlier.
-- `cache/ui/last_run.json` still holds numbers from the old roof formula until one successful run replaces it.
+- After a Local run the sidebar switch showed Cloud again on the Results page (seen via the agent API; check in a
+  browser).
 - PVWatts answers 429 when `rankBuildings` (8 threads) hits many uncached sizes; warm the cache sequentially.
 - Roof estimate: irregular shapes (V, X plans) can be ~20% over the imaged roof; `USABLE_FACTOR` is unsourced.
 - `config.py` caveats: ITC 30% needs placed-in-service by 2027-12-31; EIA rate is an all-in average; eGRID is not
   marginal; `COST_PER_WATT_BY_SIZE_KW` uses national medians. The letter omits the ITC caveat.
-- Letter split (`ui/proposal.py`) not yet seen on a live Gemini reply.
+- Letter split (`ui/proposal.py`) works on Local replies; not yet seen on a live Gemini reply.
 - Map tiles (CARTO) need internet; fonts are bundled. Restart Streamlit after newly enabling static serving.
 - Unused dependency: `streamlit-hotkeys` is still in `pyproject.toml` / `uv.lock` (removed from requirements.txt).
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
 
 ## Immediate Next Steps
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
-2. On the demo machine: `python tools/prefetch_images.py`, `ollama pull qwen3.5:4b`, then run the demo query in
-   both engines; check that the local model calls `rankBuildings` and the Agent steps look right.
+2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`. Check in a browser whether
+   the engine switch falls back to Cloud after a Local run.
 3. When Gemini quota resets (~03:00 ET Nov 15): one live run to refresh `last_run.json` and check the letter split.
 4. Optional: ITC `caveats` in finance tool output so the pitch states them.

@@ -6,13 +6,26 @@ from agent import agent
 from agent.tools import roofWattTools
 
 
+FIELDS = {"buildingId", "buildingSqft", "simplePaybackYr", "co2TonsPerYear", "belowMinimumSize", "annualKwh",
+	"systemKw", "usableRoofM2", "annualSavingsUsd", "capexUsd", "netCapexUsd", "kWh"}  # result fields and units, not tools
+
+
 def test_every_tool_named_in_the_prompt_is_registered():
 	registered = {tool.__name__ for tool in roofWattTools}
-	candidates = set(re.findall(r"\b([a-z]+[A-Z][A-Za-z]+)\b", agent.systemPrompt))
-	named = {name for name in candidates if name[0].islower() and name not in {"buildingId", "buildingSqft",
-	         "simplePaybackYr", "co2TonsPerYear", "belowMinimumSize"}}
-	assert named, "expected the prompt to name some tools"
-	assert named <= registered, f"prompt names unregistered tools: {sorted(named - registered)}"
+	for prompt in (agent.systemPrompt, agent.localSystemPrompt):
+		candidates = set(re.findall(r"\b([a-z]+[A-Z][A-Za-z]+)\b", prompt))
+		named = {name for name in candidates if name[0].islower() and name not in FIELDS}
+		assert named, "expected the prompt to name some tools"
+		assert named <= registered, f"prompt names unregistered tools: {sorted(named - registered)}"
+
+
+def test_local_prompt_adds_strict_rules_and_a_letter_heading_the_ui_can_split():
+	from ui.proposal import splitProposal
+	assert agent.localSystemPrompt.startswith(agent.systemPrompt)
+	assert "Never do arithmetic" in agent.localSystemPrompt and "Never do arithmetic" not in agent.systemPrompt
+	summary, letter = splitProposal("| Rank | Building ID |\n|---|---|\n| 1 | 240117 |\n\n## Proposal letter\n"
+		"Dear Property Owner,\n\nBody.\n\nSincerely,\nThe RoofWatt team")
+	assert summary.endswith("| 1 | 240117 |") and letter.startswith("## Proposal letter")
 
 
 class Reply:
