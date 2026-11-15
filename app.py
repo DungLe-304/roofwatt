@@ -13,7 +13,7 @@ from agent.results import rankingResult, roofImages, toolTrace
 from agent.tools import getRoofImage
 from config import loadSettings
 from data.costar_client import CostarClient, getBuilding
-from ui.components import (DEMO_QUERY, assumptionsForm, darkTheme, emptyState, kpiRow, letter, queryForm, rankedList,
+from ui.components import (CITY_LABELS, DEMO_QUERY, assumptionsForm, darkTheme, emptyState, kpiRow, letter, queryForm, rankedList,
 	aiEngine, sidebar, structuredSearch)
 from ui.detail import showDetail
 from ui.proposal import splitProposal
@@ -29,7 +29,6 @@ pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
 lastRunPath = Path(os.environ.get("ROOFWATT_LAST_RUN") or appRoot / "cache" / "ui" / "last_run.json")
 # Last AI engine choice: a browser reload starts a new session, which would otherwise reset the switch to Cloud.
 enginePath = Path(os.environ.get("ROOFWATT_ENGINE") or appRoot / "cache" / "ui" / "engine.json")
-CITY_LABELS = {"Houston": "Houston, TX", "Los Angeles": "Los Angeles, CA"}
 
 st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "expanded",
 	menu_items = {"About": "RoofWatt ranks commercial rooftops by solar payback and drafts the owner pitch. HackPrinceton Fall 2026."})
@@ -461,8 +460,10 @@ if __name__ == "__main__":
 		names, problem = localModels() if st.session_state.aiMode == agents.LOCAL else ([], None)
 		return aiEngine(names, problem, agents.hasGeminiKey(), agents.fallbackModelName)
 
+	# the sidebar city follows the Structured search City filter, which starts at the last run's city
+	st.session_state.setdefault("filterCity", city if city in CITY_LABELS else "Houston")
 	with st.sidebar:
-		modelSlot, ENGINE_PROBLEM = sidebar(PAGES, CITY_LABELS.get(city, "Houston, TX"), engine)
+		modelSlot, ENGINE_PROBLEM = sidebar(PAGES, CITY_LABELS[st.session_state.filterCity], engine)
 	saveEngineChoice(savedEngine)
 
 	try:

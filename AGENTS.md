@@ -115,7 +115,8 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`) and
   across reloads / new tabs (last choice saved in `cache/ui/engine.json`, shared by every browser on this server).
 - Structured search: "Use prompt" writes the filters into the query field (no run); Run analysis sends it.
-- 117 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+  The City filter (outside the form, kept across pages) sets the sidebar city at once.
+- 118 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues

@@ -147,6 +147,18 @@ def test_use_prompt_writes_the_filters_into_the_query_and_run_sends_it(monkeypat
 	assert not at.exception and fake.received[0][-1]["content"] == prompt
 
 
+def test_sidebar_city_follows_the_city_filter_across_pages(monkeypatch):
+	at = start(monkeypatch, FakeAgent())
+	sidebar = lambda: [m.value for m in at.sidebar.markdown]
+	assert "Houston, TX" in sidebar()
+	at.selectbox(key="filterCity").select("Los Angeles").run()
+	assert not at.exception and "Los Angeles, CA" in sidebar() and "Houston, TX" not in sidebar()
+	goto(at, "results")
+	assert "Los Angeles, CA" in sidebar()
+	goto(at, "analyze")
+	assert at.selectbox(key="filterCity").value == "Los Angeles"
+
+
 def test_what_if_recalculates_the_shown_buildings(monkeypatch, tmp_path):
 	at = start(monkeypatch, FakeAgent(roof_png(tmp_path)))
 	button(at, "Run analysis").click().run()

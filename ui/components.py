@@ -29,6 +29,7 @@ def darkTheme() -> bool:
 		return False
 
 
+CITY_LABELS = {"Houston": "Houston, TX", "Los Angeles": "Los Angeles, CA"}  # Structured search cities, sidebar labels
 AI_MODES = {"cloud": ":material/cloud: Cloud", "local": ":material/computer: Local"}
 
 
@@ -116,11 +117,13 @@ def structuredSearch(buildPrompt) -> None:
 	"""Khoa's structured search filters, tucked under the query. "Use prompt" writes them into the query field;
 	Run analysis then sends that prompt."""
 	with st.expander("Structured search"):
+		# City sits outside the form so a new choice updates the sidebar city at once; it keeps its value across pages
+		left, right = st.columns(2)
+		left.selectbox("City", list(CITY_LABELS), key="filterCity", persist_state="session")
+		right.selectbox("Property type", ["Office", "Industrial", "GeneralRetail", "Flex", "Multifamily",
+			"Hospitality"], index=0, key="filterType")
 		with st.form("propertyFilters", border=False):
 			left, right = st.columns(2)
-			left.selectbox("City", ["Houston", "Los Angeles"], index=0, key="filterCity")
-			right.selectbox("Property type", ["Office", "Industrial", "GeneralRetail", "Flex", "Multifamily",
-				"Hospitality"], index=0, key="filterType")
 			left.number_input("Minimum gross area (sq ft)", min_value=0, value=10000, step=1000, key="filterMinArea")
 			right.number_input("Number of properties", min_value=1, max_value=20, value=10, step=1, key="filterLimit")
 			left.radio("Mode", ["Rank", "Search"], index=0, horizontal=True, key="filterMode",
