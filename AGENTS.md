@@ -111,7 +111,8 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Local engine works with `qwen3.5:4b` (Ollama): the demo query runs in ~90 s (rankBuildings, getBuilding,
   getRoofImage) and drafts a letter. The Local engine gets `localRules` on top of `systemPrompt` (no arithmetic,
   fixed calls, table + `## Proposal letter`, no file tools); numbers in two runs matched the tools exactly.
-- 110 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`).
+- 111 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues
@@ -119,8 +120,6 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Gemini Free Tier: 20 requests/day; one demo query uses ~3–12. The 4B local model still sometimes uses sales
   wording ("excellent investment") against rule 7; its numbers are copied from tools.
 - Overpass (OSM) answered 429 / timed out: building footprints show only if `cache/osm-buildings/` was filled earlier.
-- After a Local run the sidebar switch showed Cloud again on the Results page (seen via the agent API; check in a
-  browser).
 - PVWatts answers 429 when `rankBuildings` (8 threads) hits many uncached sizes; warm the cache sequentially.
 - Roof estimate: irregular shapes (V, X plans) can be ~20% over the imaged roof; `USABLE_FACTOR` is unsourced.
 - `config.py` caveats: ITC 30% needs placed-in-service by 2027-12-31; EIA rate is an all-in average; eGRID is not
@@ -132,7 +131,6 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 
 ## Immediate Next Steps
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
-2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`. Check in a browser whether
-   the engine switch falls back to Cloud after a Local run.
+2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`.
 3. When Gemini quota resets (~03:00 ET Nov 15): one live run to refresh `last_run.json` and check the letter split.
 4. Optional: ITC `caveats` in finance tool output so the pitch states them.

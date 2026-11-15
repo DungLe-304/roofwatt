@@ -227,6 +227,21 @@ def test_local_mode_lists_ollama_models_and_builds_a_local_agent(monkeypatch, tm
 	assert not at.exception and title(at) == "Results" and ("local", "llama3.2:3b") in calls
 
 
+def test_engine_choice_survives_page_switches(monkeypatch, tmp_path):
+	# Widgets drop their value on a page switch unless persist_state="session" (Streamlit 1.67); the switch then
+	# fell back to Cloud after a Local run opened the Results page.
+	at = start(monkeypatch, FakeAgent(roof_png(tmp_path)))
+	at.segmented_control(key="aiMode").set_value("local").run()
+	at.selectbox(key="localModel").select("llama3.2:3b").run()
+	button(at, "Run analysis").click().run()
+	assert title(at) == "Results"
+	for page in ("results", "proposal", "analyze"):
+		goto(at, page)
+		assert at.segmented_control(key="aiMode").value == "local", page
+		assert at.selectbox(key="localModel").value == "llama3.2:3b", page
+		assert sidebarModel(at) == ["Model: Ollama · llama3.2:3b (local)"], page
+
+
 def test_local_mode_without_ollama_disables_run(monkeypatch):
 	monkeypatch.setattr(agent.agent, "listLocalModels", lambda: ([], "Ollama is not running at http://localhost:11434."))
 	at = start(monkeypatch, FakeAgent())

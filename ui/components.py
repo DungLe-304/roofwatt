@@ -35,8 +35,9 @@ AI_MODES = {"cloud": ":material/cloud: Cloud", "local": ":material/computer: Loc
 def aiEngine(localModels: list[str], localProblem: str | None, geminiReady: bool, defaultLocal: str) -> str | None:
 	"""Cloud / Local switch (st.session_state.aiMode) and, in Local mode, the Ollama model picker
 	(st.session_state.localModel). Returns why the agent cannot run in the chosen mode, or None."""
+	# persist_state="session": a widget's value is otherwise dropped on every page switch, and the switch fell back to Cloud
 	st.segmented_control("AI engine", list(AI_MODES), format_func=AI_MODES.get, key="aiMode", required=True,
-		width="stretch")
+		width="stretch", persist_state="session")
 	if st.session_state.get("fallbackNote"):
 		st.caption(st.session_state.fallbackNote)
 	if st.session_state.aiMode == "local":
@@ -44,7 +45,8 @@ def aiEngine(localModels: list[str], localProblem: str | None, geminiReady: bool
 			if st.session_state.get("localModel") not in localModels:
 				st.session_state.localModel = defaultLocal if defaultLocal in localModels else localModels[0]
 			_status("Ollama", True, "Models are listed from Ollama on this machine.")
-			st.selectbox("Local model", localModels, key="localModel", help="Models pulled into Ollama on this machine.")
+			st.selectbox("Local model", localModels, key="localModel", help="Models pulled into Ollama on this machine.",
+				persist_state="session")
 			return None
 		problem = localProblem or "Ollama is running but has no models yet."
 		_status("Ollama", False, f"{problem} Install Ollama and pull any model, for example `ollama pull {defaultLocal}` "
