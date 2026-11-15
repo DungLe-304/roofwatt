@@ -133,12 +133,15 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Roof estimate: irregular shapes (V, X plans) can be ~20% over the imaged roof; `USABLE_FACTOR` is unsourced.
 - `config.py` caveats: ITC 30% needs placed-in-service by 2027-12-31; EIA rate is an all-in average; eGRID is not
   marginal; `COST_PER_WATT_BY_SIZE_KW` uses national medians. The letter omits the ITC caveat.
-- Letter split (`ui/proposal.py`) works on Local replies; not yet seen on a live Gemini reply.
+- Letter split (`ui/proposal.py`) works on Local replies; not yet seen on a live Gemini reply (last one was empty).
 - Map tiles (CARTO) need internet; fonts are bundled. Restart Streamlit after newly enabling static serving.
 - Restart Streamlit after editing `ui/` or `agent/` modules: without `watchdog` the running server once kept the old
   `ui/components.py` while loading the new `app.py` (TypeError on the Analyze page). `pip install watchdog` may help.
-- `cache/ui/last_run.json` (Los Angeles run) predates unique ranks and still shows shared ranks (4, 4, 6, 6, ...)
-  until a new successful run overwrites it.
+- `cache/ui/last_run.json` = Houston demo on Local `qwen3.5:4b` (Nov 15 02:50): unique ranks 1-10, roof image, full
+  letter. The letter adds its own "over 20 years ≈ $2.8 million" (savings × 20, model arithmetic, not a tool number).
+- Gemini (`gemini-4-hydrogen`, Nov 15 02:47): the demo query ran 12 tool calls (rankBuildings, 10× getBuilding,
+  getRoofImage) and then returned an EMPTY final reply, so no table and no letter. Suspected, not confirmed: hidden
+  thinking uses the whole `agentMaxOutputTokens` = 1200 budget (same failure as qwen before `reasoning=False`).
 - Sidebar city shows the City filter, not the city of the results on screen, until the next run.
 - Unused dependency: `streamlit-hotkeys` is still in `pyproject.toml` / `uv.lock` (removed from requirements.txt).
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
@@ -146,6 +149,6 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 ## Immediate Next Steps
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
 2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`.
-3. One live Houston demo run (Gemini if quota is back, else Local) to refresh `last_run.json` with unique ranks
-   and check the letter split on a Gemini reply.
+3. Fix the empty Gemini reply (raise the output cap or limit Gemini thinking), then one Gemini demo run after the
+   quota reset (~12 of 20 daily requests) to confirm it and check the letter split. Until then demo on Local.
 4. Optional: ITC `caveats` in finance tool output so the pitch states them.
