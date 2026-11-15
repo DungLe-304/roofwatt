@@ -57,7 +57,7 @@ def fitView(positions: list[list[float]], *, width_px: float, height_px: float, 
 	for span, pixels in ((lonSpan, width_px), (latSpan, height_px)):
 		if span > 0:
 			zooms.append(math.log2(pixels * 360 / (WORLD_PX * span)))
-	return pdk.ViewState(latitude=lat, longitude=lon, zoom=round(min(zooms), 2))
+	return pdk.ViewState(latitude = lat, longitude = lon, zoom = round(min(zooms), 2))
 
 
 def rankingDeck(rows: list[dict]) -> pdk.Deck | None:
@@ -75,15 +75,15 @@ def rankingDeck(rows: list[dict]) -> pdk.Deck | None:
 	} for row in rows if row.get("lat") is not None and row.get("lon") is not None]
 	if not points:
 		return None
-	points.sort(key=lambda point: point["color"] == TOP_COLOR)  # draw rank 1 last, on top
-	view = fitView([point["position"] for point in points], width_px=MAP_MIN_WIDTH_PX, height_px=MAP_HEIGHT_PX)
-	dots = pdk.Layer("ScatterplotLayer", points, get_position="position", get_fill_color="color", get_radius=14,
-		radius_units="'pixels'", stroked=True, get_line_color=[15, 23, 42], line_width_min_pixels=2, pickable=True)
-	labels = pdk.Layer("TextLayer", points, get_position="position", get_text="label", get_color=LABEL_COLOR,
-		get_size=14, get_text_anchor="'middle'", get_alignment_baseline="'center'", font_weight=700)
+	points.sort(key = lambda point: point["color"] == TOP_COLOR) 
+	view = fitView([point["position"] for point in points], width_px = MAP_MIN_WIDTH_PX, height_px = MAP_HEIGHT_PX)
+	dots = pdk.Layer("ScatterplotLayer", points, get_position = "position", get_fill_color = "color", get_radius = 14,
+		radius_units = "'pixels'", stroked = True, get_line_color = [15, 23, 42], line_width_min_pixels = 2, pickable = True)
+	labels = pdk.Layer("TextLayer", points, get_position = "position", get_text = "label", get_color = LABEL_COLOR,
+		get_size = 14, get_text_anchor =  "'middle'", get_alignment_baseline = "'center'", font_weight = 700)
 	tooltip = {"html": "<b>#{label} {name}</b><br/>Payback {paybackLabel}<br/>{savingsLabel} · {systemLabel}<br/>{co2Label}",
 		"style": {"backgroundColor": "#1B2336", "color": "#F8FAFC", "fontSize": "13px"}}
-	return pdk.Deck(layers=[dots, labels], initial_view_state=view, map_provider="carto", map_style="dark", tooltip=tooltip)
+	return pdk.Deck(layers=[dots, labels], initial_view_state = view, map_provider = "carto", map_style="dark", tooltip = tooltip)
 
 
 def summaryText(result: dict) -> str:
