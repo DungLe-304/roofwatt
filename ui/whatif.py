@@ -38,7 +38,6 @@ def recalculate(rows: list[dict], assumptions: dict, baseUsableFactor: float = c
 			"co2TonsPerYear": finance.co2_tons_per_year, "belowMinimumSize": systemKw < config.MIN_SYSTEM_KW,
 		})
 	updated.sort(key=lambda row: (row["simplePaybackYr"], -row["co2TonsPerYear"]))
-	for index, row in enumerate(updated):
-		tied = index > 0 and row["simplePaybackYr"] == updated[index - 1]["simplePaybackYr"]
-		row["rank"] = updated[index - 1]["rank"] if tied else index + 1
+	for index, row in enumerate(updated, start=1):
+		row["rank"] = index  # unique ranks; equal payback is ordered by CO₂ avoided
 	return updated

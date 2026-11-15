@@ -67,7 +67,7 @@ savings_usd    = annual_kwh * ELECTRICITY_RATE_USD_PER_KWH
 capex_usd      = system_kw * 1000 * cost_per_watt_for_size(system_kw);  net = capex * (1 - INCENTIVE_PCT)
 payback_yr     = net_capex / savings;  co2_t/yr = annual_kwh * GRID_EF_KG_PER_KWH / 1000
 ```
-Ranking: drop `system_kw < 50`; sort payback ascending, tie-break CO₂ descending; equal payback shares a rank.
+Ranking: drop `system_kw < 50`; sort payback ascending, tie-break CO₂ descending; ranks are unique (1, 2, 3, ...).
 
 ## Conventions
 - English everywhere. Small, focused modules; `models/` stays pure (no network except `solar.py`).
@@ -114,7 +114,8 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   fixed calls, table + `## Proposal letter`, no file tools); 6 of 7 browser runs gave a full letter with tool numbers.
 - Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`) and
   across reloads / new tabs (last choice saved in `cache/ui/engine.json`, shared by every browser on this server).
-- 115 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- Structured search: "Use prompt" writes the filters into the query field (no run); Run analysis sends it.
+- 117 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues

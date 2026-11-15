@@ -127,9 +127,9 @@ def city(monkeypatch):
 	return seen
 
 
-def test_rank_sorts_by_payback_then_co2_and_ties_share_a_rank(city):
+def test_rank_sorts_by_payback_then_co2_and_every_rank_is_unique(city):
 	r = tools.rankBuildings("Houston", "Office", limit=10)
-	assert [(row["rank"], row["buildingId"]) for row in r["ranked"]] == [(1, "C"), (2, "B"), (2, "A")]
+	assert [(row["rank"], row["buildingId"]) for row in r["ranked"]] == [(1, "C"), (2, "B"), (3, "A")]
 	assert r["ranked"][1]["simplePaybackYr"] == r["ranked"][2]["simplePaybackYr"]
 	assert r["ranked"][1]["co2TonsPerYear"] > r["ranked"][2]["co2TonsPerYear"]
 	assert r["ranked"][0]["costPerWattUsd"] == 2.1

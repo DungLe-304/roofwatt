@@ -47,3 +47,11 @@ def test_flat_price_overrides_the_size_bins_and_rows_are_re_ranked():
 	assert {row["costPerWattUsd"] for row in rows} == {1.0}
 	assert [row["rank"] for row in rows] == [1, 2]
 	assert rows[0]["simplePaybackYr"] <= rows[1]["simplePaybackYr"]
+
+
+def test_equal_payback_still_gets_unique_ranks():
+	twin = ROWS[0] | {"rank": 1, "buildingId": "3", "usableRoofM2": ROWS[0]["usableRoofM2"] / 2,
+		"systemKw": ROWS[0]["systemKw"] / 2, "annualKwh": ROWS[0]["annualKwh"] / 2}  # same price bin, same payback
+	rows = recalculate([ROWS[0], twin], defaultAssumptions() | {"flatCostPerWatt": 1.0})
+	assert rows[0]["simplePaybackYr"] == rows[1]["simplePaybackYr"]
+	assert [(row["rank"], row["buildingId"]) for row in rows] == [(1, "1"), (2, "3")]  # more CO₂ ranks first

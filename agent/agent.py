@@ -23,7 +23,7 @@ systemPrompt = dedent("""
 		   so call it once per building instead of chaining all three.
 		   For any "best", "top N" or ranking request, call rankBuildings once: it analyzes every matching building
 		   and returns them ranked. Never rank by calling computeFinancials building by building.
-		   Present the rank values exactly as returned; buildings with the same payback share a rank.
+		   Present the rank values exactly as returned; every building has its own rank.
 		   For the building you pitch, call getRoofImage once. It returns an image file path for the app to display;
 		   never describe what the image shows. If it returns an error, say the aerial image is unavailable.
 		3. Report only facts and numerical values returned by tools.
