@@ -95,7 +95,7 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Opus 5.5) - 2026-11-14 (branch `ai-mode`, not merged)
+Claude Code (Opus 5.5) - 2026-11-14 (`main` = `master`)
 
 ## Current Objective
 Agent + chat UI answer the demo query over all Houston offices. Gemini quota is covered by a local Ollama
@@ -233,7 +233,7 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   into `.venv`) untracked and gitignored; run `streamlit skills` locally to get them.
 - Remote has two branches, `main` (default) and `master`; both at the same commit. Push to both:
   `git push origin main && git push origin main:master`.
-- AI engine switch (branch `ai-mode`): sidebar `st.segmented_control` Cloud / Local (`st.session_state.aiMode`, default
+- AI engine switch (`ai-mode`, merged in `fabda31`): sidebar `st.segmented_control` Cloud / Local (`st.session_state.aiMode`, default
   Cloud). Local lists Ollama models (`agent.agent.listLocalModels`, `GET /api/tags`, cached 15 s) in a picker
   (`localModel`); Ollama down / no models / no `GOOGLE_API_KEY` disables Run with the reason. `createAgent(mode,
   localModelName)`: Local = Ollama only, Cloud = `QuotaFallbackAgent` (Gemini, then the chosen local model); one agent
