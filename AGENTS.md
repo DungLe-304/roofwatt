@@ -185,11 +185,15 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   `langchain-ollama` added to `pyproject.toml`/`uv.lock`; `python-dotenv` is back (`agent.py` calls `load_dotenv()`).
 - After the fallback: `langchain-ollama` added to `requirements.txt`. `d5724ff` had dropped the detail panel
   (`showDetail`, `roofImageFor`, `lookupBuilding`) from `app.py`; restored, Khoa's per-message trace kept.
-  `tests/test_app.py` fake factory accepts `pingGemini`. 77 tests pass.
+  `tests/test_app.py` fake factory accepts `pingGemini`. 77 tests pass (`9854c15`).
+- Active model in the UI: `app.py` `modelLabel(agent)` reads `QuotaFallbackAgent.useLocalModel` after each invoke
+  ("Model: Gemini · gemini-4-hydrogen" or "Model: Ollama · qwen3.5:4b (local fallback, Gemini quota exhausted)").
+  Shown as a caption under each reply (stored per message as `model`) and in the sidebar (placeholder filled at the
+  end of the run, so a mid-request switch shows). `tests/test_app.py` clears `st.cache_resource` per test. 78 tests.
 
 ## Modified Files
 - Khoa (fallback): `agent/agent.py`, `agent/tools.py` (docstring), `app.py`, `ui/ranking.py` (reformat), `pyproject.toml`, `uv.lock`
-- This session: `requirements.txt`, `app.py` (detail panel restored), `tests/test_app.py`, `AGENTS.md`
+- This session: `requirements.txt`, `app.py` (detail panel restored, model label), `tests/test_app.py`, `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
@@ -207,7 +211,6 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
     Not installed on Tony's machine.
   - Not yet checked: whether a 4B model calls the tools reliably and keeps every number from tool output.
   - The startup ping costs 1 Gemini request each time the agent is created (`st.cache_resource` makes that once per server).
-  - The UI does not show which model answered.
 - `app.py` UI (plan §6 step 9) has everything except a proposal panel: the pitch is the agent's chat text. The map
   does not highlight the selected row. Tool trace is unit-tested on LangChain message shapes; not yet seen live.
   Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background.
@@ -221,5 +224,5 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
 ## Immediate Next Steps
 1. On the demo machine: `ollama pull qwen3.5:4b`, run `python tools/prefetch_images.py`, then run the demo query
    on both Gemini and Ollama. Check that Qwen calls `rankBuildings` and that the "Agent steps" trace looks right.
-2. Optional: show the active model (Gemini / Ollama) in the UI, and add a test for `QuotaFallbackAgent` with fake agents.
+2. Optional: unit test for `QuotaFallbackAgent` (agent/agent.py, Khoa's file) with fake agents.
 3. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).

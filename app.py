@@ -5,7 +5,7 @@ import streamlit.components.v1 as components
 import streamlit as st
 import streamlit_hotkeys as hotkeys
 
-from agent.agent import createRoofWattAgent
+from agent.agent import createRoofWattAgent, fallbackModelName
 from agent.results import rankingResult, roofImages, toolTrace
 from agent.tools import getRoofImage
 from config import loadSettings
@@ -38,6 +38,12 @@ st.caption("A commercial solar analysis agent for properties in Houston and Los 
 @st.cache_resource
 def loadAgent(checkGemini = True):
 	return createRoofWattAgent(pingGemini = checkGemini)
+
+def modelLabel(agent):
+	"""Which LLM the agent uses now: Gemini, or local Ollama once QuotaFallbackAgent has switched."""
+	if getattr(agent, "useLocalModel", False):
+		return f"Model: Ollama · {fallbackModelName} (local fallback, Gemini quota exhausted)"
+	return f"Model: Gemini · {loadSettings().modelName.split(':', 1)[-1]}"
 
 def extractText(content):
 	if isinstance(content, str):
@@ -160,9 +166,11 @@ def runAgentRequest(agent, requestText):
 				trace = toolTrace(result["messages"])
 				if ranking:
 					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
+				model = modelLabel(agent)  # read after invoke: a quota error during this request switches to Ollama
 				st.markdown(responseText)
+				st.caption(model)
 				showAssistantExtras({"images": images, "ranking": ranking, "trace": trace}, key = f"ranking-current-{len(st.session_state.chatMessages)}")
-				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking, "trace": trace})
+				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking, "trace": trace, "model": model})
 			except Exception as error:
 				errorMessage = str(error)
 				if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
@@ -181,10 +189,13 @@ if __name__ == "__main__":
 	if st.sidebar.button("Clear conversation"):
 		st.session_state.chatMessages = []
 		st.rerun()
+	modelStatus = st.sidebar.empty()  # filled last, so it reflects a switch to Ollama during this run
 
 	for index, message in enumerate(st.session_state.chatMessages):
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
+			if message.get("model"):
+				st.caption(message["model"])
 			if message["role"] == "assistant":
 				showAssistantExtras(message, key = f"ranking-{index}")
 
@@ -194,3 +205,5 @@ if __name__ == "__main__":
 		runAgentRequest(agent, buildSearchPrompt(city, propertyType, minGrossArea, int(limit), randomize, mode))
 	elif userPrompt:
 		runAgentRequest(agent, userPrompt)
+
+	modelStatus.caption(modelLabel(agent))

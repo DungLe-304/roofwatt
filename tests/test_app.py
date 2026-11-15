@@ -3,9 +3,17 @@
 import json
 
 from langchain_core.messages import AIMessage, ToolMessage
+import pytest
+import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 import agent.agent
+
+
+@pytest.fixture(autouse=True)
+def fresh_agent_cache():
+	"""app.loadAgent is st.cache_resource; without a clear, a later test would get the previous test's fake agent."""
+	st.cache_resource.clear()
 
 
 RANKING = {"city": "Houston", "propertyType": "Office", "totalMatches": 185, "rankedCount": 173,
@@ -25,6 +33,7 @@ class FakeAgent:
 	def __init__(self, image_path):
 		self.image_path = image_path
 		self.received = None
+		self.useLocalModel = False  # QuotaFallbackAgent flag: True once Gemini quota is exhausted
 
 	def invoke(self, state):
 		first_turn = self.received is None
@@ -62,3 +71,39 @@ def test_reply_and_roof_image_are_shown_and_kept_in_history(tmp_path, monkeypatc
 	assert not at.exception and not at.error
 	assert shown(at) == (1, 1, 1, 1, 8)
 	assert fake.received[-2:] == [{"role": "assistant", "content": "Top building: 240117."}, {"role": "user", "content": "thanks"}]
+
+
+def modelCaptions(at):
+	return [c.value for c in at.caption if c.value.startswith("Model:")]
+
+
+class QuotaSwitchAgent:
+	"""Answers the first turn on Gemini, then hits the quota and answers on the local model, like QuotaFallbackAgent."""
+
+	def __init__(self):
+		self.useLocalModel = False
+		self.turns = 0
+
+	def invoke(self, state):
+		self.turns += 1
+		if self.turns > 1:
+			self.useLocalModel = True
+		return {"messages": [AIMessage(f"Reply {self.turns}.")]}
+
+
+def test_model_used_is_shown_per_reply_and_in_sidebar(monkeypatch):
+	fake = QuotaSwitchAgent()
+	monkeypatch.setattr(agent.agent, "createRoofWattAgent", lambda **kwargs: fake)
+
+	at = AppTest.from_file("../app.py", default_timeout=30).run()
+	assert [c.value for c in at.sidebar.caption if c.value.startswith("Model:")] == ["Model: Gemini · gemini-4-hydrogen"]
+
+	at.chat_input[0].set_value("first").run()
+	assert not at.exception and not at.error
+	assert modelCaptions(at)[-1:] == ["Model: Gemini · gemini-4-hydrogen"]
+
+	at.chat_input[0].set_value("second").run()
+	assert not at.exception and not at.error
+	ollama = "Model: Ollama · qwen3.5:4b (local fallback, Gemini quota exhausted)"
+	assert [c.value for c in at.main.caption if c.value.startswith("Model:")] == ["Model: Gemini · gemini-4-hydrogen", ollama]
+	assert [c.value for c in at.sidebar.caption if c.value.startswith("Model:")] == [ollama]
