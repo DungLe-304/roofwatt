@@ -293,14 +293,9 @@ def analyzePage():
 	query, runClicked = queryForm(st.session_state.get("lastQuery") or DEMO_QUERY, disabled = bool(ENGINE_PROBLEM))
 	if ENGINE_PROBLEM:
 		st.caption(f"{ENGINE_PROBLEM} Change the AI engine in the sidebar.")
-	searchSubmitted, filters = structuredSearch(disabled = bool(ENGINE_PROBLEM))
+	structuredSearch(buildSearchPrompt)
 
-	request = None
-	if searchSubmitted:
-		request = buildSearchPrompt(filters["city"], filters["propertyType"], filters["minGrossArea"], filters["limit"],
-			filters["randomize"], filters["mode"])
-	elif runClicked and query:
-		request = query
+	request = query if runClicked and query else None
 	if request:
 		succeeded = executeRequest(AGENT, AGENT_ERROR, request)
 		if st.session_state.aiMode == agents.CLOUD and getattr(AGENT, "useLocalModel", False):

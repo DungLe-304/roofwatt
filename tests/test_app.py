@@ -133,6 +133,20 @@ def test_run_opens_results_then_building_and_proposal(monkeypatch, tmp_path):
 	assert at.expander[-1].label == "Agent steps · 2"
 
 
+def test_use_prompt_writes_the_filters_into_the_query_and_run_sends_it(monkeypatch, tmp_path):
+	fake = FakeAgent(roof_png(tmp_path))
+	at = start(monkeypatch, fake)
+	at.selectbox(key="filterType").select("Industrial")
+	at.number_input(key="filterLimit").set_value(5)
+	button(at, "Use prompt").click().run()
+	assert not at.exception and not fake.received and title(at) == "Analyze"  # nothing is sent yet
+	prompt = at.text_area(key="query").value
+	assert prompt.startswith("Use rankBuildings once with city=Houston, propertyType=Industrial")
+	assert "limit=5" in prompt
+	button(at, "Run analysis").click().run()
+	assert not at.exception and fake.received[0][-1]["content"] == prompt
+
+
 def test_what_if_recalculates_the_shown_buildings(monkeypatch, tmp_path):
 	at = start(monkeypatch, FakeAgent(roof_png(tmp_path)))
 	button(at, "Run analysis").click().run()

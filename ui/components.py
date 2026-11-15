@@ -105,23 +105,29 @@ def queryForm(default: str = DEMO_QUERY, disabled: bool = False) -> tuple[str, b
 	return query.strip(), run
 
 
-def structuredSearch(disabled: bool = False) -> tuple[bool, dict]:
-	"""Khoa's structured search form, tucked under the query. Returns (submitted, filters)."""
+def _useFilters(buildPrompt) -> None:
+	"""Write the structured filters into the query field (runs before the field is drawn again)."""
+	state = st.session_state
+	st.session_state.query = buildPrompt(state.filterCity, state.filterType, int(state.filterMinArea),
+		int(state.filterLimit), state.filterRandomize, state.filterMode)
+
+
+def structuredSearch(buildPrompt) -> None:
+	"""Khoa's structured search filters, tucked under the query. "Use prompt" writes them into the query field;
+	Run analysis then sends that prompt."""
 	with st.expander("Structured search"):
 		with st.form("propertyFilters", border=False):
 			left, right = st.columns(2)
-			filters = {
-				"city": left.selectbox("City", ["Houston", "Los Angeles"], index=0),
-				"propertyType": right.selectbox("Property type", ["Office", "Industrial", "GeneralRetail", "Flex",
-					"Multifamily", "Hospitality"], index=0),
-				"minGrossArea": left.number_input("Minimum gross area (sq ft)", min_value=0, value=10000, step=1000),
-				"limit": int(right.number_input("Number of properties", min_value=1, max_value=20, value=10, step=1)),
-				"mode": left.radio("Mode", ["Rank", "Search"], index=0, horizontal=True,
-					help="Rank orders buildings by solar payback; Search lists matching buildings."),
-				"randomize": right.checkbox("Randomize search results", value=False),
-			}
-			submitted = st.form_submit_button("Run search", disabled=disabled)
-	return submitted, filters
+			left.selectbox("City", ["Houston", "Los Angeles"], index=0, key="filterCity")
+			right.selectbox("Property type", ["Office", "Industrial", "GeneralRetail", "Flex", "Multifamily",
+				"Hospitality"], index=0, key="filterType")
+			left.number_input("Minimum gross area (sq ft)", min_value=0, value=10000, step=1000, key="filterMinArea")
+			right.number_input("Number of properties", min_value=1, max_value=20, value=10, step=1, key="filterLimit")
+			left.radio("Mode", ["Rank", "Search"], index=0, horizontal=True, key="filterMode",
+				help="Rank orders buildings by solar payback; Search lists matching buildings.")
+			right.checkbox("Randomize search results", value=False, key="filterRandomize")
+			st.form_submit_button("Use prompt", on_click=_useFilters, args=(buildPrompt,),
+				help="Write these filters into the query above; Run analysis sends it.")
 
 
 def kpiRow(result: dict, rows: list[dict]) -> None:
