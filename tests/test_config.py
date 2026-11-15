@@ -29,6 +29,8 @@ def test_settings_only_holds_fields_the_app_uses():
 		"agentContextCharacters",
 		"agentMaxOutputTokens",  # agent/agent.py: Gemini token/retry limits
 		"agentMaxRetries",
+		"ollamaHost",  # agent/agent.py: Local AI mode
+		"localModelName",
 	}
 
 

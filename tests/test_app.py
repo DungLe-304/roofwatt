@@ -1,4 +1,4 @@
-"""Streamlit app with fake agents (no LLM, no network): the five pages, run flow, what-if, fallback, model label."""
+"""Streamlit app with fake agents (no LLM, no network): the five pages, run flow, what-if, fallback, AI modes."""
 
 import json
 
@@ -29,6 +29,8 @@ def isolated(tmp_path, monkeypatch):
 	st.cache_data.clear()
 	monkeypatch.setenv("ROOFWATT_LAST_RUN", str(tmp_path / "last_run.json"))
 	monkeypatch.setattr(data.buildings, "loadBuildingGeometry", lambda positions: {"buildings": [], "warning": ""})
+	monkeypatch.setattr(agent.agent, "hasGeminiKey", lambda: True)
+	monkeypatch.setattr(agent.agent, "listLocalModels", lambda: (["llama3.2:3b", "qwen3.5:4b"], None))
 
 
 def roof_png(tmp_path):
@@ -59,8 +61,13 @@ class FakeAgent:
 		]}
 
 
-def start(monkeypatch, fake):
-	monkeypatch.setattr(agent.agent, "createRoofWattAgent", lambda **kwargs: fake)
+def start(monkeypatch, fake, calls=None):
+	"""Run the app with `fake` as the agent for every AI mode; `calls` records (mode, local model) per agent built."""
+	def factory(mode, localModelName=None):
+		if calls is not None:
+			calls.append((mode, localModelName))
+		return fake
+	monkeypatch.setattr(agent.agent, "createAgent", factory)
 	return AppTest.from_file("../app.py", default_timeout=30).run()
 
 
@@ -171,18 +178,67 @@ class QuotaSwitchAgent:
 		return {"messages": [AIMessage(f"Reply {self.turns}.")]}
 
 
-def test_model_in_use_is_shown_in_the_sidebar_and_with_the_agent_steps(monkeypatch):
+def sidebarModel(at):
+	return [m.value for m in at.sidebar.markdown if m.value.startswith("Model:")]
+
+
+def test_model_in_use_is_shown_and_a_quota_fallback_flips_the_switch_to_local(monkeypatch):
 	at = start(monkeypatch, QuotaSwitchAgent())
-	sidebar = lambda: [m.value for m in at.sidebar.markdown if m.value.startswith("Model:")]
-	assert sidebar() == ["Model: Gemini · gemini-4-hydrogen"]
+	assert at.segmented_control(key="aiMode").value == "cloud"
+	assert sidebarModel(at) == ["Model: Gemini · gemini-4-hydrogen"]
+	assert "Gemini: :green[Active]" in [m.value for m in at.sidebar.markdown]
 
 	button(at, "Run analysis").click().run()
 	assert not at.exception and title(at) == "Results" and "did not rank buildings" in text(at) and "Reply 1." in text(at)
 	goto(at, "analyze")
 	assert "Model: Gemini · gemini-4-hydrogen" in [c.value for c in at.main.caption]
 
-	button(at, "Run analysis").click().run()
-	ollama = "Model: Ollama · qwen3.5:4b (local fallback, Gemini quota exhausted)"
-	assert sidebar() == [ollama]
+	button(at, "Run analysis").click().run()  # the quota runs out: the answer comes from Ollama, the switch moves
+	assert at.segmented_control(key="aiMode").value == "local"
+	assert any("Gemini free quota is used up" in c.value for c in at.sidebar.caption)
 	goto(at, "analyze")
-	assert ollama in [c.value for c in at.main.caption]
+	assert "Model: Ollama · qwen3.5:4b (local fallback, Gemini quota exhausted)" in [c.value for c in at.main.caption]
+	assert sidebarModel(at) == ["Model: Ollama · qwen3.5:4b (local)"]
+
+
+def test_choosing_cloud_again_retries_gemini(monkeypatch):
+	fake = QuotaSwitchAgent()
+	at = start(monkeypatch, fake)
+	button(at, "Run analysis").click().run()
+	goto(at, "analyze")
+	button(at, "Run analysis").click().run()
+	assert fake.useLocalModel and at.segmented_control(key="aiMode").value == "local"
+	at.segmented_control(key="aiMode").set_value("cloud").run()
+	assert not fake.useLocalModel and sidebarModel(at) == ["Model: Gemini · gemini-4-hydrogen"]
+	assert not any("quota is used up" in c.value for c in at.sidebar.caption)
+
+
+def test_local_mode_lists_ollama_models_and_builds_a_local_agent(monkeypatch, tmp_path):
+	calls = []
+	at = start(monkeypatch, FakeAgent(roof_png(tmp_path)), calls)
+	assert calls == [("cloud", "qwen3.5:4b")]
+	at.segmented_control(key="aiMode").set_value("local").run()
+	picker = at.selectbox(key="localModel")
+	assert picker.options == ["llama3.2:3b", "qwen3.5:4b"] and picker.value == "qwen3.5:4b"  # the suggested default
+	assert "Ollama: :green[Active]" in [m.value for m in at.sidebar.markdown]
+	picker.select("llama3.2:3b").run()
+	assert sidebarModel(at) == ["Model: Ollama · llama3.2:3b (local)"]
+	button(at, "Run analysis").click().run()
+	assert not at.exception and title(at) == "Results" and ("local", "llama3.2:3b") in calls
+
+
+def test_local_mode_without_ollama_disables_run(monkeypatch):
+	monkeypatch.setattr(agent.agent, "listLocalModels", lambda: ([], "Ollama is not running at http://localhost:11434."))
+	at = start(monkeypatch, FakeAgent())
+	at.segmented_control(key="aiMode").set_value("local").run()
+	assert not at.exception and button(at, "Run analysis").disabled
+	assert "Ollama: :red[Offline]" in [m.value for m in at.sidebar.markdown]
+	assert any("Ollama is not running" in c.value for c in at.main.caption)
+
+
+def test_cloud_mode_without_a_gemini_key_disables_run(monkeypatch):
+	monkeypatch.setattr(agent.agent, "hasGeminiKey", lambda: False)
+	at = start(monkeypatch, FakeAgent())
+	assert not at.exception and button(at, "Run analysis").disabled
+	assert "Gemini: :red[Offline]" in [m.value for m in at.sidebar.markdown]
+	assert sidebarModel(at) == ["Model: unavailable · GOOGLE_API_KEY is not set, so the cloud model cannot run."]

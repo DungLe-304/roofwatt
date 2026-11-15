@@ -30,6 +30,10 @@ h1 {{ font-size: 2.25rem; font-weight: 700; letter-spacing: -0.02em; padding: 0 
 /* Orange is a fill, never text: slider values use the text color */
 [data-testid="stSliderThumbValue"], [data-testid="stSliderThumbValue"] * {{ color: light-dark({INK}, #F5F5F7) !important; font-weight: 600; }}
 
+/* AI engine switch: the selected segment keeps the text color (orange stays on the border and tint) */
+.st-key-aiMode button[aria-checked="true"], .st-key-aiMode button[aria-checked="true"] * {{ color: inherit !important; font-weight: 600; }}
+.st-key-aiMode button[aria-checked="true"] {{ color: light-dark({INK}, #F5F5F7) !important; }}
+
 /* Primary action: orange fill, dark text in both themes */
 [data-testid^="stBaseButton-primary"], [data-testid^="stBaseButton-primary"] p {{ color: {INK} !important; font-weight: 600; }}
 

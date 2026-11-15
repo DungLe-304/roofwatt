@@ -18,5 +18,23 @@ pytest -q                         # run the tests
 streamlit run app.py
 ```
 
+## AI engine: Cloud or Local
+
+The sidebar has an **AI engine** switch with two modes. Both use the same prompt and tools; only the language model changes.
+
+- **Cloud** (default): Gemini through the API (`GOOGLE_API_KEY`). If the free quota runs out, the run is answered by
+  the local model and the switch moves to Local. Choosing Cloud again retries Gemini.
+- **Local**: a model served by [Ollama](https://ollama.com) on this computer. The sidebar lists every model Ollama has
+  pulled; `qwen3.5:4b` is the default.
+
+```bash
+brew install ollama        # or the installer from ollama.com
+ollama serve               # leave running (the macOS app starts it for you)
+ollama pull qwen3.5:4b     # or any other model, e.g. ollama pull llama3.2:3b
+```
+
+Ollama on another machine: set `ollamaHost` (e.g. `ollamaHost=http://192.168.1.20:11434`) in `.env`.
+`localModelName` sets the default local model. Small local models may call the tools less reliably than Gemini.
+
 See `docs/PROJECT_PLAN.md` for the full project plan and `AGENTS.md` for agent handoff notes
 (`CLAUDE.md` only imports `AGENTS.md`). The CoStar data kit is described in `index.md`.
