@@ -5,8 +5,6 @@ import math
 import pandas as pd
 import pydeck as pdk
 
-TOP_COLOR = [34, 197, 94]  # design-system accent #22C55E: rank 1
-OTHER_COLOR = [148, 163, 184]  # design-system muted foreground #94A3B8
 LABEL_COLOR = [15, 23, 42]  # design-system "on accent" #0F172A
 MAP_HEIGHT_PX = 420
 MAP_MIN_WIDTH_PX = 700  # narrowest chat column we expect; the view is fitted to this so wider screens only add margin
@@ -62,12 +60,15 @@ def fitView(positions: list[list[float]], *, width_px: float, height_px: float, 
 
 def rankingDeck(rows: list[dict]) -> pdk.Deck | None:
 	"""Map of the ranked buildings (rank 1 highlighted), or None when no row has coordinates."""
+	TOP_HALF_COLOUR = [[i, 255, 0] for i in range(0, 255, math.floor(255 / (len(rows) / 2)))]  # gradient from bright green to yellow
+	BOTTOM_HALF_COLOUR = [[255, 255 - i, 0] for i in range(0, 255, math.floor(255 / (len(rows) / 2)))]  # gradient from yellow to red
+	COLOUR = TOP_HALF_COLOUR + BOTTOM_HALF_COLOUR
 	points = [{
 		"buildingId": str(row["buildingId"]),
 		"position": [row["lon"], row["lat"]],
 		"label": str(row["rank"]),
 		"name": _name(row),
-		"color": TOP_COLOR if row["rank"] == 1 else OTHER_COLOR,
+		"color": COLOUR[row["rank"] - 1] if 1 <= row["rank"] <= len(COLOUR) else [128, 128, 128],
 		"paybackLabel": f"{row['simplePaybackYr']:.2f} yr",
 		"savingsLabel": f"${row['annualSavingsUsd']:,.0f}/yr",
 		"co2Label": f"{row['co2TonsPerYear']:,.0f} t CO₂/yr",
@@ -75,7 +76,6 @@ def rankingDeck(rows: list[dict]) -> pdk.Deck | None:
 	} for row in rows if row.get("lat") is not None and row.get("lon") is not None]
 	if not points:
 		return None
-	points.sort(key = lambda point: point["color"] == TOP_COLOR) 
 	view = fitView([point["position"] for point in points], width_px = MAP_MIN_WIDTH_PX, height_px = MAP_HEIGHT_PX)
 	dots = pdk.Layer("ScatterplotLayer", points, get_position = "position", get_fill_color = "color", get_radius = 14,
 		radius_units = "'pixels'", stroked = True, get_line_color = [15, 23, 42], line_width_min_pixels = 2, pickable = True)
