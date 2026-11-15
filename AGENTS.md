@@ -108,12 +108,13 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   picking Cloud again retries Gemini. Run is disabled with the reason when the chosen engine cannot run.
 - Latte / Mocha native appearance switching; locally served CaskaydiaCove fonts, square controls, matching map
   markers and tooltip. Existing layout preserved. Analyze and Assumptions checked visually in both appearances.
-- Local engine works with `qwen3.5:4b` (Ollama): the demo query runs in ~90 s (rankBuildings, getBuilding,
+- Local engine works with `qwen3.5:4b` (Ollama, thinking off: `reasoning=False`, else hidden thinking used the
+  whole 1200-token budget and cut the answer): the demo query runs in ~45 s (rankBuildings, getBuilding,
   getRoofImage) and drafts a letter. The Local engine gets `localRules` on top of `systemPrompt` (no arithmetic,
-  fixed calls, table + `## Proposal letter`, no file tools); numbers in two runs matched the tools exactly.
+  fixed calls, table + `## Proposal letter`, no file tools); 6 of 7 browser runs gave a full letter with tool numbers.
 - Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`) and
   across reloads / new tabs (last choice saved in `cache/ui/engine.json`, shared by every browser on this server).
-- 112 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- 113 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues

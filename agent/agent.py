@@ -115,8 +115,10 @@ class QuotaFallbackAgent:
 def createLocalAgent(modelName = None):
 	"""Deep agent on a local Ollama model: same tools as the cloud agent, prompt plus the stricter localRules."""
 	settings = loadSettings()
+	# reasoning=False: thinking models (qwen3.5:4b) otherwise spend the whole num_predict budget on hidden thinking
+	# and the answer is cut off mid-table, with no letter.
 	localModel = ChatOllama(model = modelName or settings.localModelName, base_url = settings.ollamaHost,
-		num_ctx = settings.agentContextCharacters, num_predict = settings.agentMaxOutputTokens)
+		num_ctx = settings.agentContextCharacters, num_predict = settings.agentMaxOutputTokens, reasoning = False)
 	return create_deep_agent(model = localModel, system_prompt = localSystemPrompt, tools = roofWattTools)
 
 

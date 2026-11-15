@@ -92,3 +92,13 @@ def test_other_errors_are_not_hidden_by_the_fallback():
 		assert not fallback.useLocalModel
 	else:
 		raise AssertionError("expected the Gemini error to propagate")
+
+
+def test_local_agent_turns_off_thinking(monkeypatch):
+	# qwen3.5:4b spent the whole num_predict budget (1200 tokens) on hidden thinking, so the answer was cut mid-table.
+	seen = {}
+	monkeypatch.setattr(agent, "ChatOllama", lambda **kwargs: seen.update(kwargs) or "model")
+	monkeypatch.setattr(agent, "create_deep_agent", lambda **kwargs: kwargs)
+	built = agent.createLocalAgent("qwen3.5:4b")
+	assert seen["reasoning"] is False and seen["model"] == "qwen3.5:4b"
+	assert built["system_prompt"] == agent.localSystemPrompt
