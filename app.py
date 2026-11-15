@@ -1,25 +1,36 @@
+import json
+import os
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import streamlit as st
 
+import data.buildings as osm
 from agent.agent import createRoofWattAgent, fallbackModelName
 from agent.results import rankingResult, roofImages, toolTrace
 from agent.tools import getRoofImage
 from config import loadSettings
 from data.costar_client import CostarClient, getBuilding
-from ui.detail import selectedIndex, showDetail
-from ui.ranking import addCoordinates, showRanking
-from ui.trace import showTrace
-from ui.sunlight import queryDateFor
+from ui.components import (DEMO_QUERY, assumptionsForm, darkTheme, emptyState, kpiRow, letter, queryForm, rankedList,
+	sidebar, structuredSearch)
+from ui.detail import showDetail
+from ui.proposal import splitProposal
+from ui.ranking import MAP_HEIGHT_PX, addCoordinates, rankingDeck, rankingTable, selectedFromMap, summaryText
+from ui.styles import injectCss
+from ui.sunlight import queryDateFor, solarNoon
+from ui.trace import LiveTrace, showTrace
+from ui.whatif import recalculate
 
 appRoot = Path(__file__).resolve().parent
 pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
 # Last successful run, shown if the agent fails (offline demo fallback). cache/ is gitignored; tests point this elsewhere.
 lastRunPath = Path(os.environ.get("ROOFWATT_LAST_RUN") or appRoot / "cache" / "ui" / "last_run.json")
+CITY_LABELS = {"Houston": "Houston, TX", "Los Angeles": "Los Angeles, CA"}
 
-st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "collapsed")
+st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "expanded",
+	menu_items = {"About": "RoofWatt ranks commercial rooftops by solar payback and drafts the owner pitch. HackPrinceton Fall 2026."})
 injectCss()
 
 
@@ -94,6 +105,43 @@ def lookupBuilding(buildingId):
 		return None
 
 
+FOOTPRINT_RETRY_S = 300  # a failed download (Overpass rate limit, timeout) is retried after this long
+
+
+@st.cache_resource
+def footprintStore():
+	return {}  # positions -> {"result": geometry or None while downloading, "at": epoch seconds}
+
+
+def footprints(positions):
+	"""Nearby OSM footprints for the 3D map without blocking the page.
+
+	Returns the geometry, or None while a worker thread downloads it (data/buildings.py caches successes on disk,
+	so later sessions get them at once). The public Overpass API can take 20 s or answer 429.
+	"""
+	store = footprintStore()
+	entry = store.get(positions)
+	failed = entry and entry["result"] is not None and not entry["result"]["buildings"] and entry["result"]["warning"]
+	if entry is None or (failed and time.time() - entry["at"] > FOOTPRINT_RETRY_S):
+		entry = store[positions] = {"result": None, "at": time.time()}
+
+		def work():
+			entry["result"], entry["at"] = osm.loadBuildingGeometry(positions), time.time()
+
+		worker = threading.Thread(target = work, daemon = True)
+		worker.start()
+		worker.join(0.3)  # a disk-cache hit finishes within this, so the buildings are there on first paint
+	return entry["result"]
+
+
+@st.fragment(run_every = 2)
+def redrawWhenFootprintsArrive(positions):
+	"""Polls while the download runs; one full rerun draws the 3D buildings (or the notice that there are none)."""
+	entry = footprintStore().get(positions)
+	if entry and entry["result"] is not None:
+		st.rerun()
+
+
 def friendlyError(error):
 	text = str(error)
 	if "429" in text or "RESOURCE_EXHAUSTED" in text:
@@ -119,8 +167,8 @@ def loadSavedRun():
 
 
 def runAgent(agent, requestText, history):
-	"""Invoke the agent on a worker thread and draw its tool calls live; returns the run to keep in session state."""
-	live, outcome = LiveTrace(), {}
+	"""Invoke the agent on a worker thread and list its tool calls live; returns the run to keep in session state."""
+	live, outcome, submittedAt = LiveTrace(), {}, datetime.now(timezone.utc).isoformat()
 
 	def work():
 		try:
@@ -130,13 +178,13 @@ def runAgent(agent, requestText, history):
 
 	worker = threading.Thread(target = work, daemon = True)
 	worker.start()
-	with st.status("Planning the analysis…", expanded = True) as status:
+	with st.status("Planning the analysis", expanded = True) as status:
 		steps = st.empty()
 		while worker.is_alive():
 			label = live.drain()
 			if label:
 				status.update(label = label)
-			steps.markdown(live.markdown() or "_Reading the request and planning tool calls…_")
+			steps.markdown(live.markdown() or "Reading the request and planning tool calls.")
 			worker.join(0.2)
 		live.drain()
 		if "error" in outcome:
@@ -147,82 +195,69 @@ def runAgent(agent, requestText, history):
 	messages = outcome["result"]["messages"]
 	ranking = rankingResult(messages)
 	if ranking:
-		rows = ranking["ranked"]
-		row = rows[selectedIndex(showRanking(ranking, key = key), len(rows))]
-		imagePath, imageError = dict(images).get(row["buildingId"]), None
-		if not imagePath:
-			imageResult = roofImageFor(row["buildingId"])
-			imagePath, imageError = imageResult.get("imagePath"), imageResult.get("error")
-		showDetail(row, imagePath, imageError, lookupBuilding(row["buildingId"]))
-		rankedIds = {ranked["buildingId"] for ranked in rows}
-		images = [image for image in images if image[0] not in rankedIds]  # already shown in the detail panel
-	showRoofImages(images)
-
-def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
-	filters = f"city={city}, propertyType={propertyType}, minimum gross area={minGrossArea} sq ft, limit={limit}"
-	if mode == "Search":
-		randomInstruction = "randomize=true" if randomize else "randomize=false"
-		return f"Use searchBuildings with {filters}, {randomInstruction}. Report returned facts and warnings. Do not rank these results."
-	if mode == "Rank":
-		return f"Use rankBuildings once with {filters}. Rank matching buildings by returned simple payback. Do not randomize or call computeFinancials one building at a time. Report exclusions and assumptions concisely."
-	raise ValueError("Mode must be Search or Rank.")
+		with st.spinner("Placing buildings on the map"):
+			ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords()),
+				"queryDate": queryDateFor(ranking["city"], submittedAt)}
+	return {"query": requestText, "response": extractText(messages[-1].content), "ranking": ranking,
+		"images": [list(image) for image in roofImages(messages)], "trace": toolTrace(messages),
+		"model": modelLabel(agent), "savedAt": datetime.now().strftime("%b %d, %H:%M")}
 
 
-def runAgentRequest(agent, requestText):
-	submittedAt = datetime.now(timezone.utc).isoformat()
-	st.session_state.chatMessages.append({"role": "user", "content": requestText})
-	with st.chat_message("user"):
-		st.markdown(requestText)
-
-	with st.chat_message("assistant"):
-		with st.spinner("Analyzing properties..."):
-			try:
-				history = buildAgentHistory(st.session_state.chatMessages)
-				result = agent.invoke({"messages": history})
-				responseText = extractText(result["messages"][-1].content)
-				images = roofImages(result["messages"])
-				ranking = rankingResult(result["messages"])
-				trace = toolTrace(result["messages"])
-				if ranking:
-					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords()), "queryDate": queryDateFor(ranking["city"], submittedAt)}
-				model = modelLabel(agent)  # read after invoke: a quota error during this request switches to Ollama
-				st.markdown(responseText)
-				st.caption(model)
-				showAssistantExtras({"images": images, "ranking": ranking, "trace": trace}, key = f"ranking-current-{len(st.session_state.chatMessages)}")
-				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking, "trace": trace, "model": model})
-			except Exception as error:
-				errorMessage = str(error)
-				if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
-					st.error("Gemini quota is currently exhausted. Wait for the quota window to reset, then try again.")
-				else:
-					st.error(f"RoofWatt could not complete the request: {errorMessage}")
-
-	scrollToBottom()
-
-if __name__ == "__main__":
-	for name, default in {"run": None, "chatMessages": [], "selectedId": None, "assumptions": None, "notice": None,
-			"lastMapPick": None}.items():
-		st.session_state.setdefault(name, default)
-
+def executeRequest(agent, agentError, requestText):
+	"""Run one request; on failure keep the current results, or fall back to the last saved run. True on success."""
+	history = buildAgentHistory(st.session_state.chatMessages + [{"role": "user", "content": requestText}])
+	st.session_state.lastQuery = requestText
 	try:
-		agent, agentError = loadAgent(), None
+		if agent is None:
+			raise RuntimeError(agentError or "The agent could not be started.")
+		run = runAgent(agent, requestText, history)
 	except Exception as error:
-		agent, agentError = None, friendlyError(error)
+		message = friendlyError(error)
+		saved = loadSavedRun()
+		if st.session_state.run is None and saved:
+			st.session_state.run = saved | {"fromCache": True}
+			message += f" The last saved analysis ({saved.get('savedAt', 'earlier')}) is on the Results page."
+		elif st.session_state.run is not None:
+			message += " Your previous results are unchanged."
+		st.session_state.notice = message
+		return False
+	st.session_state.chatMessages += [{"role": "user", "content": requestText}, {"role": "assistant", "content": run["response"]}]
+	st.session_state.run, st.session_state.notice, st.session_state.lastMapPick = run, None, None
+	st.session_state.selectedId = str(run["ranking"]["ranked"][0]["buildingId"]) if run["ranking"] else None
+	st.session_state.pop("mapFocus", None)
+	saveRun(run)
+	return True
 
-	with st.sidebar:
-		assumptionsSidebar()
-		st.divider()
-		searchSubmitted, filters = propertySearchSidebar()
-		if st.button("Clear results", icon = ":material/delete_sweep:", width = "stretch"):
-			for name in ("run", "selectedId", "notice", "lastMapPick"):
-				st.session_state[name] = None
-			st.session_state.chatMessages = []
-			st.rerun()
-		modelStatus = st.empty()  # filled last, so it reflects a switch to Ollama during this run
 
-	ranking = (st.session_state.run or {}).get("ranking") or {}
-	header({"Houston": "Houston, TX", "Los Angeles": "Los Angeles, CA"}.get(ranking.get("city"), "Houston, TX"))
-	query, runClicked = queryBar()
+def currentRanking():
+	"""(ranking, sourced rows, rows under the active what-if assumptions) for the run in session state."""
+	ranking = (st.session_state.run or {}).get("ranking")
+	if not ranking:
+		return None, [], []
+	base = ranking["ranked"]
+	rows = recalculate(base, st.session_state.assumptions) if st.session_state.assumptions else base
+	ids = [str(row["buildingId"]) for row in rows]
+	if st.session_state.selectedId not in ids:
+		st.session_state.selectedId = ids[0]
+	return ranking, base, rows
+
+
+def whatIfNotice(count):
+	if st.session_state.assumptions:
+		st.info(f"What-if assumptions are active: numbers are recalculated for these {count} buildings. "
+			"Re-run the analysis to re-rank every building.")
+
+
+def openBuilding(buildingId):
+	st.session_state.selectedId, st.session_state.openBuilding = buildingId, True
+
+
+def analyzePage():
+	st.title("Analyze")
+	st.markdown("<p class='rw-lede'>Rank Houston commercial rooftops by solar payback, then draft the pitch for the "
+		"best one.</p>", unsafe_allow_html = True)
+	query, runClicked = queryForm(st.session_state.get("lastQuery") or DEMO_QUERY)
+	searchSubmitted, filters = structuredSearch()
 
 	request = None
 	if searchSubmitted:
@@ -230,23 +265,164 @@ if __name__ == "__main__":
 			filters["randomize"], filters["mode"])
 	elif runClicked and query:
 		request = query
-	if request and executeRequest(agent, agentError, request):
-		st.rerun()
-	modelStatus = st.sidebar.empty()  # filled last, so it reflects a switch to Ollama during this run
+	if request and executeRequest(AGENT, AGENT_ERROR, request):
+		st.switch_page(PAGES["results"])
 
-	for index, message in enumerate(st.session_state.chatMessages):
-		with st.chat_message(message["role"]):
-			st.markdown(message["content"])
-			if message.get("model"):
-				st.caption(message["model"])
-			if message["role"] == "assistant":
-				showAssistantExtras(message, key = f"ranking-{index}")
+	if st.session_state.notice:
+		st.error(st.session_state.notice)
+	run = st.session_state.run
+	if run:
+		showTrace(run.get("trace") or [], run.get("model"))
+		st.page_link(PAGES["results"], label = "View results")
 
-	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
 
-	if runSearch:
-		runAgentRequest(agent, buildSearchPrompt(city, propertyType, minGrossArea, int(limit), randomize, mode))
-	elif userPrompt:
-		runAgentRequest(agent, userPrompt)
+def resultsPage():
+	if st.session_state.pop("openBuilding", False):
+		st.switch_page(PAGES["building"])
+	st.title("Results")
+	run = st.session_state.run
+	if not run:
+		return emptyState(PAGES["analyze"])
+	if run.get("fromCache"):
+		st.info(f"Saved analysis from {run.get('savedAt', 'an earlier run')}, shown because the agent could not answer.")
+	ranking, _, rows = currentRanking()
+	if not ranking:
+		st.markdown("This run did not rank buildings. The agent's answer:")
+		st.markdown(run.get("response") or "The agent returned no text.")
+		return
+	whatIfNotice(len(rows))
+	kpiRow(ranking, rows)
 
-	modelStatus.caption(modelLabel(agent))
+	located = [row for row in rows if row.get("lat") is not None and row.get("lon") is not None]
+	names = {str(row["buildingId"]): row.get("address") or f"Building {row['buildingId']}" for row in located}
+	mapColumn, listColumn = st.columns([11, 9], gap = "large")
+	with listColumn:  # drawn first: the map below may wait on the footprint download
+		st.markdown(f"<p class='rw-label'>Top {len(rows)} by payback</p>", unsafe_allow_html = True)
+		rankedList(rows, st.session_state.selectedId, MAP_HEIGHT_PX + 250, openBuilding)
+	with mapColumn:
+		positions = tuple((row["lon"], row["lat"]) for row in located)
+		geometry = footprints(positions)
+		buildings = geometry["buildings"] if geometry else []
+		focusId = st.selectbox("Map view", [None] + list(names), key = "mapFocus",
+			format_func = lambda buildingId: "All results" if buildingId is None else names[buildingId])
+		focusRow = next((row for row in located if str(row["buildingId"]) == focusId), None)
+		deck = rankingDeck(rows, st.session_state.selectedId, dark = darkTheme(), buildings = buildings,
+			queryDate = ranking.get("queryDate"), city = ranking.get("city", "Houston"), focusRow = focusRow)
+		if deck is None:
+			st.info("No coordinates for these buildings, so there is no map.")
+		else:
+			event = st.pydeck_chart(deck, height = MAP_HEIGHT_PX, on_select = "rerun", selection_mode = "single-object", key = "map")
+			picked = selectedFromMap(event)
+			if picked and picked != st.session_state.lastMapPick:  # a new click on the map, not a stale selection
+				st.session_state.selectedId = st.session_state.lastMapPick = picked
+				st.rerun()
+			st.caption(f"{summaryText(ranking)} Orange is the best payback; dot size is system size.")
+			notes = []
+			if ranking.get("queryDate"):
+				sunTime = solarNoon(deck.initial_view_state.latitude, deck.initial_view_state.longitude, ranking["queryDate"],
+					ranking.get("city", "Houston"))
+				notes.append(f"Shadows: solar noon on {ranking['queryDate']} ({sunTime:%H:%M %Z}), visual only.")
+			if geometry is None:
+				notes.append("Loading 3D building footprints from OpenStreetMap.")
+			elif buildings:
+				known = sum(building["heightM"] > 0 for building in buildings)
+				notes.append(f"Buildings: © OpenStreetMap contributors (ODbL), {len(buildings)} footprints, {known} with tagged "
+					"heights (others flat); not CoStar property boundaries.")
+			elif geometry["warning"].startswith("Building geometry unavailable"):
+				notes.append("3D building footprints are unavailable right now (OpenStreetMap did not answer), so the "
+					"map shows the ranked points only.")
+			elif geometry["warning"]:
+				notes.append(geometry["warning"])
+			if notes:
+				st.caption(" ".join(notes))
+		if geometry is None:
+			redrawWhenFootprintsArrive(positions)
+	with st.expander("Table"):
+		st.dataframe(rankingTable(rows), hide_index = True, width = "stretch")
+
+
+def pickBuilding():
+	st.session_state.selectedId = st.session_state.buildingPicker
+
+
+def buildingPage():
+	st.title("Building")
+	ranking, base, rows = currentRanking()
+	if not ranking:
+		return emptyState(PAGES["analyze"])
+	whatIfNotice(len(rows))
+	byId = {str(row["buildingId"]): row for row in rows}
+	selectedId = st.selectbox("Building", list(byId), index = list(byId).index(st.session_state.selectedId), key = "buildingPicker",
+		on_change = pickBuilding, format_func = lambda buildingId: f"#{byId[buildingId]['rank']} · "
+		f"{byId[buildingId].get('address') or 'Building ' + buildingId}")
+	row = byId[selectedId]
+	baseline = next((b for b in base if str(b["buildingId"]) == selectedId), None) if st.session_state.assumptions else None
+	imagePath, imageError = dict(st.session_state.run.get("images") or []).get(selectedId), None
+	if not imagePath:
+		with st.spinner("Fetching the aerial roof image"):
+			imageResult = roofImageFor(selectedId)
+		imagePath, imageError = imageResult.get("imagePath"), imageResult.get("error")
+	showDetail(row, imagePath, imageError, lookupBuilding(selectedId), baseline = baseline,
+		assumptions = st.session_state.assumptions, propertyType = ranking.get("propertyType"))
+
+
+def proposalPage():
+	st.title("Proposal")
+	run = st.session_state.run
+	if not run:
+		return emptyState(PAGES["analyze"])
+	summary, proposal = splitProposal(run.get("response", ""))
+	if proposal:
+		letter(proposal, "roofwatt-proposal", run.get("model"))
+		if summary:
+			with st.expander("Rest of the agent's answer"):
+				st.markdown(summary)
+	else:
+		st.markdown("The agent did not draft a letter in this run. Its answer:")
+		st.markdown(run.get("response") or "The agent returned no text.")
+
+
+def assumptionsPage():
+	st.title("Assumptions")
+	st.markdown("<p class='rw-lede'>What-if values recalculate the buildings already shown. They do not re-run the agent "
+		"or re-rank every building.</p>", unsafe_allow_html = True)
+	assumptionsForm()
+	if st.session_state.assumptions:
+		st.markdown("What-if values are active on Results and Building.")
+		if st.button("Reset to sourced defaults"):
+			st.session_state.assumptions = None
+			st.rerun()
+	else:
+		st.markdown("Using the sourced defaults from config.py.")
+	if st.session_state.run:
+		st.page_link(PAGES["results"], label = "View results")
+
+
+if __name__ == "__main__":
+	for name, default in {"run": None, "chatMessages": [], "selectedId": None, "assumptions": None, "notice": None,
+			"lastMapPick": None}.items():
+		st.session_state.setdefault(name, default)
+
+	try:
+		AGENT, AGENT_ERROR = loadAgent(), None
+	except Exception as error:
+		AGENT, AGENT_ERROR = None, friendlyError(error)
+
+	PAGES = {
+		"analyze": st.Page(analyzePage, title = "Analyze", icon = ":material/search:", url_path = "analyze", default = True),
+		"results": st.Page(resultsPage, title = "Results", icon = ":material/leaderboard:", url_path = "results"),
+		"building": st.Page(buildingPage, title = "Building", icon = ":material/apartment:", url_path = "building"),
+		"proposal": st.Page(proposalPage, title = "Proposal", icon = ":material/description:", url_path = "proposal"),
+		"assumptions": st.Page(assumptionsPage, title = "Assumptions", icon = ":material/tune:", url_path = "assumptions"),
+	}
+	page = st.navigation(list(PAGES.values()), position = "hidden")
+	city = ((st.session_state.run or {}).get("ranking") or {}).get("city")
+	with st.sidebar:
+		modelSlot = sidebar(PAGES, CITY_LABELS.get(city, "Houston, TX"))
+
+	def showModel():
+		modelSlot.markdown(modelLabel(AGENT) if AGENT is not None else f"Model: unavailable · {AGENT_ERROR}")
+
+	showModel()
+	page.run()
+	showModel()  # again after the page ran: a quota error during the run switches the model to Ollama

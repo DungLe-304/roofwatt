@@ -36,12 +36,13 @@ agent/tools.py      tool wrappers exposed to the agent
 data/costar_client.py  CoStar building search/details
 data/imagery.py     Vexcel aerial imagery (Matterport stretch)
 data/cache.py       response cache
-ui/components.py    page blocks: header, query bar, empty state, KPI row, ranked cards, proposal, sidebars
-ui/theme.py         brand colors + custom CSS (theme itself in .streamlit/config.toml)
-ui/ranking.py       pydeck map (light, size ~ kW, Khoa's green→yellow→red rank gradient) + table
-ui/detail.py        detail panel for the selected building (roof image + metrics with source tooltips)
-ui/trace.py         live tool trace (LangChain callback) + "How the agent got here" expander
-ui/whatif.py        sidebar what-if recalculation of the shown rows (models.finance, no API calls)
+ui/components.py    page blocks (branch minimal-ui): sidebar nav, query form, KPI tiles, ranked list, letter, assumptions
+ui/styles.py        the only custom CSS (currentColor-based, works in light and dark; theme in .streamlit/config.toml)
+ui/ranking.py       pydeck map: Khoa's tilted 3D OSM buildings + sun, #1 orange / others blue, light or dark basemap
+ui/sunlight.py      solar-noon timestamp for the map's lighting (Khoa)
+ui/detail.py        Building page: roof image + key-value list with source tooltips
+ui/trace.py         live tool trace (LangChain callback) + "Agent steps" expander
+ui/whatif.py        what-if recalculation of the shown rows (models.finance, no API calls)
 ui/proposal.py      splits the drafted owner letter out of the agent's answer
 models/schemas.py   Building, RoofResult, SolarResult, FinanceResult dataclasses
 models/roof.py      usable roof area (tier 1: footprint × USABLE_FACTOR)
@@ -51,7 +52,7 @@ tests/              pytest (test_finance.py)
 docs/PROJECT_PLAN.md   full plan, data contracts, calc model, agent design
 index.md, schemas/, models/*.md, tools/expand_records.py   CoStar data kit docs (data in data/*.jsonl via Git LFS)
 assets/             app icon
-design-system/roofwatt/MASTER.md  old dark/green design system; superseded by the brand palette in ui/theme.py
+design-system/roofwatt/MASTER.md  old dark/green design system; superseded by .streamlit/config.toml + ui/styles.py
 .streamlit/config.toml  Streamlit theme derived from MASTER.md
 ```
 
@@ -94,7 +95,7 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Codex - 2026-11-14
+Claude Code (Fable 5.2) - 2026-11-14 (branch `minimal-ui`)
 
 ## Current Objective
 Agent + chat UI answer the demo query over all Houston offices. Gemini quota is covered by a local Ollama
@@ -207,6 +208,17 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   Shown as a caption under each reply (stored per message as `model`) and in the sidebar (placeholder filled at the
   end of the run, so a mid-request switch shows). `tests/test_app.py` clears `st.cache_resource` per test. 78 tests.
 
+- Branch `minimal-ui` (from main `d7e2194`, not merged): minimal Apple-style UI with native light and dark themes
+  (`[theme.light]` / `[theme.dark]`, follows the system; switch in the app menu, there is no API to switch from code).
+  Five `st.navigation` pages as functions in `app.py` (Analyze, Results, Building, Proposal, Assumptions) with a custom
+  sidebar (`st.page_link`); results stay in `st.session_state.run`. Results map = Khoa's 3D map (pitch 55, OSM
+  footprints, solar-noon shadows) with spec colors (#1 orange, others blue) and a dark basemap in dark mode; footprints
+  load on a worker thread (`app.footprints`) so the page never waits on Overpass. One CSS file (`ui/styles.py`):
+  `color-mix(currentColor)` for muted text and hairlines, `light-dark()` for navy headings (Streamlit sets
+  `color-scheme` on `.stApp`). `ui/theme.py` removed. Tests switch pages with a `goto` helper (AppTest.switch_page
+  does not take function pages). Checked in headless Chrome, both themes, 1920x1080 and 1366x768. 93 tests.
+- Branch `retro-ui` (local commit `f814b2a`, not pushed): Windows 98 restyle, kept as an alternative.
+
 ## Modified Files
 - Khoa (fallback): `agent/agent.py`, `agent/tools.py` (docstring), `app.py`, `ui/ranking.py` (reformat), `pyproject.toml`, `uv.lock`
 - UI redesign: `app.py`, `.streamlit/config.toml`, `ui/{components,theme,whatif,proposal}.py` (new),
@@ -214,6 +226,11 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   `tests/test_{app,detail,ranking}.py`, `tests/test_{whatif,proposal,trace}.py` (new), `AGENTS.md`
 
 ## Known Issues
+- **`origin/main` (`d7e2194`) does not start**: Khoa's merge mixed the old chat `app.py` with the redesign
+  (`ImportError: selectedIndex`), 6 tests fail there. `minimal-ui` rewrites `app.py`; merging it fixes main.
+- Overpass (OSM footprints) answered HTTP 429 / timed out on 2026-11-14 evening: the 3D buildings may be missing in
+  the demo unless `cache/osm-buildings/` was filled earlier by a successful load of the same top 10. The map still
+  shows the ranked points and says the footprints are unavailable.
 - 3D map: cached nearby OSM closed-way footprints via Overpass (`data/buildings.py`); only tagged metric heights extruded, missing heights flat. Geometry is contextual, not verified CoStar boundaries. `ui/sunlight.py` computes solar noon on the saved city-local query date; `ui/ranking.py` supports tilted overview and zoom-17 property inspection. Added astral/tzdata, lock updated. Browser sunlight/shadows still need visual validation; existing rank-color test expects the old palette and fails against the user's gradient.
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
   EIA rate is an all-in average (incl. demand charges); eGRID uses total-output rate, not marginal.
@@ -243,8 +260,10 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   CoStar data terms before submission. Cloning needs `git lfs`.
 
 ## Immediate Next Steps
-1. On the demo machine: `ollama pull qwen3.5:4b`, run `python tools/prefetch_images.py`, then run the demo query
+1. Decide between `minimal-ui`, `retro-ui` and the light UI, merge the choice into `main` (main is broken now).
+   Open Results once when Overpass answers, so the 3D footprints are cached on disk for the demo.
+2. On the demo machine: `ollama pull qwen3.5:4b`, run `python tools/prefetch_images.py`, then run the demo query
    on both Gemini and Ollama. Check that Qwen calls `rankBuildings` and that the "Agent steps" trace looks right.
-2. Live demo once Gemini quota is back: check the live trace, the proposal split and the Copy button in a real browser.
-3. Optional: unit test for `QuotaFallbackAgent` (agent/agent.py, Khoa's file) with fake agents.
-4. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).
+3. Live demo once Gemini quota is back: check the live trace, the proposal split and the Copy button in a real browser.
+4. Optional: unit test for `QuotaFallbackAgent` (agent/agent.py, Khoa's file) with fake agents.
+5. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).

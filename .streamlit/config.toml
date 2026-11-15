@@ -1,23 +1,39 @@
-# RoofWatt brand theme (colors from assets/roofwatt-logo.svg). Light theme for projector readability.
-# primaryColor is solar orange; buttons on it use navy text (ui/theme.py): white on #FF9F1C is only 2.0:1,
-# navy #13294B on #FF9F1C is 7.1:1. Inter loads from Google Fonts when online and falls back to the system
-# sans-serif offline, so the demo still works without internet.
+# RoofWatt minimal theme: neutral surfaces, one accent (solar orange), light and dark.
+# No `base` is set, so the app follows the viewer's system setting; the theme selector is in the app menu
+# (top right). Custom CSS lives in ui/styles.py and uses currentColor, so it needs no per-theme copy.
+# Inter loads from Google Fonts and falls back to the bundled sans-serif offline.
 [theme]
-base = "light"
 primaryColor = "#FF9F1C"
-backgroundColor = "#F7F9FC"
-secondaryBackgroundColor = "#EEF3FA"
-textColor = "#13294B"
-linkColor = "#2F80ED"
-borderColor = "#DCE3EC"
-showWidgetBorder = true
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
 baseFontSize = 17
 baseRadius = "12px"
+showWidgetBorder = true
+showSidebarBorder = true
+metricValueFontSize = "2rem"
+metricValueFontWeight = 600
+linkUnderline = true
 
-[theme.sidebar]
+[theme.light]
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F7F9FC"
+secondaryBackgroundColor = "#F5F5F7"
+textColor = "#1D1D1F"
+borderColor = "#E5E5EA"
+linkColor = "#13294B"  # brand navy, used sparingly (14:1 on white)
+
+[theme.light.sidebar]
+backgroundColor = "#F5F5F7"
+secondaryBackgroundColor = "#FFFFFF"
+
+[theme.dark]
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#1C1C1E"
+textColor = "#F5F5F7"
+borderColor = "#38383A"
+linkColor = "#F5F5F7"
+
+[theme.dark.sidebar]
+backgroundColor = "#1C1C1E"
+secondaryBackgroundColor = "#2C2C2E"
 
 [client]
-toolbarMode = "minimal"  # hide the Deploy button during the demo
+toolbarMode = "minimal"  # menu keeps only About + the theme selector
