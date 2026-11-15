@@ -39,7 +39,8 @@ data/imagery.py     Vexcel roof images · data/buildings.py: OSM footprints via 
 models/             schemas (data contracts), roof, solar (PVWatts), finance (pure functions)
 ui/components.py    page blocks: sidebar + AI engine switch, query form, KPIs, ranked list, letter, assumptions
 ui/styles.py        the only custom CSS (works in light and dark); theme in .streamlit/config.toml
-ui/ranking.py       pydeck 3D map (#1 orange, others blue) · ui/sunlight.py: solar-noon lighting (Khoa)
+ui/ranking.py       pydeck 2D map (best rank green through lowest rank red) · ui/sunlight.py: local query dates
+ui/palette.py       Catppuccin Latte / Mocha tokens for custom surfaces and map layers
 ui/detail.py, ui/trace.py, ui/whatif.py, ui/proposal.py   Building page, agent steps, what-if, letter split
 tools/prefetch_images.py   fill cache/vexcel/ for the top 20 before a demo
 index.md, schemas/, models/*.md   CoStar data kit docs
@@ -73,7 +74,8 @@ Ranking: drop `system_kw < 50`; sort payback ascending, tie-break CO₂ descendi
 - Every assumption lives in `config.py` with a cited source. **Never invent numbers**; leave TODO if unsourced.
 - Watch units: W vs kW, kg vs t, ft² vs m².
 - Every reported number comes from a tool; the agent never computes or copies numbers itself.
-- UI: no gradients, no emojis, orange `#FF9F1C` only as a fill (never text); keep custom CSS in `ui/styles.py`.
+- UI: Catppuccin Latte (light) / Mocha (dark), bundled CaskaydiaCove Nerd Font Mono, square rectangular corners.
+  Preserve the five-page layout; no gradients or extra decoration. Keep custom CSS in `ui/styles.py`.
 - Never commit `.env`, keys, or `.agents/` / `.claude/skills/developing-with-streamlit` (symlinks into `.venv`).
 - Tony and Khoa own separate files. Remote has `main` (default) and `master`; push both:
   `git push origin main && git push origin main:master`.
@@ -87,10 +89,10 @@ and rewrite `Immediate Next Steps`. Keep Part 2 short: state what is true now, n
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Opus 5.5) - 2026-11-14 (`main` = `master`)
+OpenAI Codex - 2026-11-15 (theme changes on local `main`, uncommitted)
 
 ## Current Objective
-Demo-ready: the demo query works end-to-end in either AI engine, with results, 3D map, roof images and letter.
+Demo-ready: the demo query works end-to-end in either AI engine, with results, 2D map, roof images and letter.
 
 ## Completed (current state)
 - Tools: `rankBuildings` screens every matching building in code (185 Houston offices → 171 ranked, 14 below 50 kW);
@@ -98,30 +100,33 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 3
 - Roof footprint uses min(typical floor, gross ÷ stories), checked against Vexcel images (gross ÷ stories alone
   overstated towers up to 2×). Top 3: 240117, 362982, 23573.
 - UI (`minimal-ui`, merged): 5 sidebar pages, native light/dark theme (follows the system; switch in the ⋮ menu),
-  live tool trace, KPIs, 3D map (OSM footprints load on a worker thread), what-if Assumptions (usable factor 0.30–1.00),
+  live tool trace, KPIs, 2D map (OSM footprints load on a worker thread), what-if Assumptions (usable factor 0.30–1.00),
   letter with Copy/Download. Last good run saved to `cache/ui/last_run.json` and shown if the agent fails.
 - AI engine switch (`ai-mode`, merged): sidebar Cloud / Local with Active/Offline status. Local lists the models
   pulled into Ollama. Cloud falls back to the local model on a Gemini quota error and flips the switch to Local;
   picking Cloud again retries Gemini. Run is disabled with the reason when the chosen engine cannot run.
-- 108 tests pass. `retro-ui` (Windows 98 restyle) exists only as a local branch.
+- Latte / Mocha native appearance switching; locally served CaskaydiaCove fonts, square controls, matching map
+  markers and tooltip. Existing layout preserved. Analyze and Assumptions checked visually in both appearances.
+- 109 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+  path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues
 - Rotate the NLR (PVWatts) key: it was printed in a session log before the redaction fix.
 - Gemini Free Tier: 20 requests/day; one demo query uses ~3–12. Local mode is untested with a real model (no Ollama
   on Tony's machine); a 4B model may call tools less reliably.
-- Overpass (OSM) answered 429 / timed out: the 3D buildings show only if `cache/osm-buildings/` was filled earlier.
+- Overpass (OSM) answered 429 / timed out: building footprints show only if `cache/osm-buildings/` was filled earlier.
 - `cache/ui/last_run.json` still holds numbers from the old roof formula until one successful run replaces it.
 - PVWatts answers 429 when `rankBuildings` (8 threads) hits many uncached sizes; warm the cache sequentially.
 - Roof estimate: irregular shapes (V, X plans) can be ~20% over the imaged roof; `USABLE_FACTOR` is unsourced.
 - `config.py` caveats: ITC 30% needs placed-in-service by 2027-12-31; EIA rate is an all-in average; eGRID is not
   marginal; `COST_PER_WATT_BY_SIZE_KW` uses national medians. The letter omits the ITC caveat.
 - Letter split (`ui/proposal.py`) not yet seen on a live Gemini reply.
-- Map tiles (CARTO) and the Inter font need internet.
+- Map tiles (CARTO) need internet; fonts are bundled. Restart Streamlit after newly enabling static serving.
 - Unused dependency: `streamlit-hotkeys` is still in `pyproject.toml` / `uv.lock` (removed from requirements.txt).
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
 
 ## Immediate Next Steps
-1. Rotate the NLR key. Open Results once when Overpass answers, so the 3D footprints are cached for the demo.
+1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
 2. On the demo machine: `python tools/prefetch_images.py`, `ollama pull qwen3.5:4b`, then run the demo query in
    both engines; check that the local model calls `rankBuildings` and the Agent steps look right.
 3. When Gemini quota resets (~03:00 ET Nov 15): one live run to refresh `last_run.json` and check the letter split.

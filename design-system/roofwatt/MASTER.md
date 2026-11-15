@@ -1,5 +1,10 @@
 # Design System Master File
 
+> **Active override — 2026-11-15:** Preserve the pulled five-page layout. Use Catppuccin Latte for light mode
+> and Mocha for dark mode, CaskaydiaCove Nerd Font Mono from bundled assets, and square rectangular corners.
+> Current tokens live in `.streamlit/config.toml` and `ui/palette.py`. The historical palette, typography and
+> corner values below are superseded; use this reference only for restraint and interaction guidance.
+
 > **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.
 > If not, strictly follow the rules below.

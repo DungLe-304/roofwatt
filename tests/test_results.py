@@ -17,8 +17,8 @@ def test_collects_existing_images_in_order(tmp_path):
 	messages = [
 		HumanMessage("pitch the top building"),
 		tool_message("rankBuildings", '{"ranked": []}'),
-		tool_message("getRoofImage", f'{{"buildingId": "1", "imagePath": "{first}"}}', "c2"),
-		tool_message("getRoofImage", f'{{"buildingId": "2", "imagePath": "{second}"}}', "c3"),
+		tool_message("getRoofImage", json.dumps({"buildingId": "1", "imagePath": str(first)}), "c2"),
+		tool_message("getRoofImage", json.dumps({"buildingId": "2", "imagePath": str(second)}), "c3"),
 		AIMessage("done"),
 	]
 	assert roofImages(messages) == [("1", str(first)), ("2", str(second))]
@@ -29,10 +29,10 @@ def test_skips_errors_missing_files_duplicates_and_bad_json(tmp_path):
 	image.write_bytes(b"x")
 	messages = [
 		tool_message("getRoofImage", '{"buildingId": "1", "error": "Vexcel rejected VEXCEL_API_KEY (HTTP 401)"}'),
-		tool_message("getRoofImage", f'{{"buildingId": "2", "imagePath": "{tmp_path / "gone.jpeg"}"}}'),
+		tool_message("getRoofImage", json.dumps({"buildingId": "2", "imagePath": str(tmp_path / "gone.jpeg")})),
 		tool_message("getRoofImage", "not json"),
-		tool_message("getRoofImage", f'{{"buildingId": "3", "imagePath": "{image}"}}'),
-		tool_message("getRoofImage", f'{{"buildingId": "3", "imagePath": "{image}"}}'),
+		tool_message("getRoofImage", json.dumps({"buildingId": "3", "imagePath": str(image)})),
+		tool_message("getRoofImage", json.dumps({"buildingId": "3", "imagePath": str(image)})),
 	]
 	assert roofImages(messages) == [("3", str(image))]
 

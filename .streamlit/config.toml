@@ -1,39 +1,91 @@
-# RoofWatt minimal theme: neutral surfaces, one accent (solar orange), light and dark.
-# No `base` is set, so the app follows the viewer's system setting; the theme selector is in the app menu
-# (top right). Custom CSS lives in ui/styles.py and uses currentColor, so it needs no per-theme copy.
-# Inter loads from Google Fonts and falls back to the bundled sans-serif offline.
+# Catppuccin Latte / Mocha. Keep native system preference and menu switching.
+[server]
+enableStaticServing = true
+
 [theme]
-primaryColor = "#FF9F1C"
-font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+font = "CaskaydiaCove Nerd Font Mono"
+headingFont = "CaskaydiaCove Nerd Font Mono"
+codeFont = "CaskaydiaCove Nerd Font Mono"
 baseFontSize = 17
-baseRadius = "12px"
+baseRadius = "none"
+buttonRadius = "none"
 showWidgetBorder = true
 showSidebarBorder = true
 metricValueFontSize = "2rem"
 metricValueFontWeight = 600
 linkUnderline = true
 
+[[theme.fontFaces]]
+family = "CaskaydiaCove Nerd Font Mono"
+url = "app/static/fonts/CaskaydiaCoveNerdFontMono-Regular.ttf"
+weight = "400"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "CaskaydiaCove Nerd Font Mono"
+url = "app/static/fonts/CaskaydiaCoveNerdFontMono-Bold.ttf"
+weight = "600 900"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "CaskaydiaCove Nerd Font Mono"
+url = "app/static/fonts/CaskaydiaCoveNerdFontMono-Italic.ttf"
+weight = "400"
+style = "italic"
+
 [theme.light]
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F5F5F7"
-textColor = "#1D1D1F"
-borderColor = "#E5E5EA"
-linkColor = "#13294B"  # brand navy, used sparingly (14:1 on white)
+primaryColor = "#8839ef"
+backgroundColor = "#eff1f5"
+secondaryBackgroundColor = "#e6e9ef"
+textColor = "#4c4f69"
+borderColor = "#9ca0b0"
+linkColor = "#1e66f5"
+codeBackgroundColor = "#e6e9ef"
+codeTextColor = "#4c4f69"
+dataframeHeaderBackgroundColor = "#dce0e8"
+dataframeBorderColor = "#9ca0b0"
+redColor = "#d20f39"
+orangeColor = "#fe640b"
+yellowColor = "#df8e1d"
+greenColor = "#40a02b"
+blueColor = "#1e66f5"
+violetColor = "#8839ef"
+grayColor = "#9ca0b0"
+baseRadius = "none"
+buttonRadius = "none"
 
 [theme.light.sidebar]
-backgroundColor = "#F5F5F7"
-secondaryBackgroundColor = "#FFFFFF"
+backgroundColor = "#e6e9ef"
+secondaryBackgroundColor = "#eff1f5"
+baseRadius = "none"
+buttonRadius = "none"
 
 [theme.dark]
-backgroundColor = "#000000"
-secondaryBackgroundColor = "#1C1C1E"
-textColor = "#F5F5F7"
-borderColor = "#38383A"
-linkColor = "#F5F5F7"
+primaryColor = "#cba6f7"
+backgroundColor = "#1e1e2e"
+secondaryBackgroundColor = "#181825"
+textColor = "#cdd6f4"
+borderColor = "#6c7086"
+linkColor = "#89b4fa"
+codeBackgroundColor = "#181825"
+codeTextColor = "#cdd6f4"
+dataframeHeaderBackgroundColor = "#11111b"
+dataframeBorderColor = "#6c7086"
+redColor = "#f38ba8"
+orangeColor = "#fab387"
+yellowColor = "#f9e2af"
+greenColor = "#a6e3a1"
+blueColor = "#89b4fa"
+violetColor = "#cba6f7"
+grayColor = "#6c7086"
+baseRadius = "none"
+buttonRadius = "none"
 
 [theme.dark.sidebar]
-backgroundColor = "#1C1C1E"
-secondaryBackgroundColor = "#2C2C2E"
+backgroundColor = "#181825"
+secondaryBackgroundColor = "#1e1e2e"
+baseRadius = "none"
+buttonRadius = "none"
 
 [client]
-toolbarMode = "minimal"  # menu keeps only About + the theme selector
+toolbarMode = "minimal"

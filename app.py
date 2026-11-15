@@ -19,7 +19,7 @@ from ui.detail import showDetail
 from ui.proposal import splitProposal
 from ui.ranking import MAP_HEIGHT_PX, addCoordinates, rankingDeck, rankingTable, selectedFromMap, summaryText
 from ui.styles import injectCss
-from ui.sunlight import queryDateFor, solarNoon
+from ui.sunlight import queryDateFor
 from ui.trace import LiveTrace, showTrace
 from ui.whatif import recalculate
 
@@ -127,7 +127,7 @@ def footprintStore():
 
 
 def footprints(positions):
-	"""Nearby OSM footprints for the 3D map without blocking the page.
+	"""Nearby OSM footprints for the 2D map without blocking the page.
 
 	Returns the geometry, or None while a worker thread downloads it (data/buildings.py caches successes on disk,
 	so later sessions get them at once). The public Overpass API can take 20 s or answer 429.
@@ -149,7 +149,7 @@ def footprints(positions):
 
 @st.fragment(run_every = 2)
 def redrawWhenFootprintsArrive(positions):
-	"""Polls while the download runs; one full rerun draws the 3D buildings (or the notice that there are none)."""
+	"""Polls while the download runs; one full rerun draws the footprints (or the notice that there are none)."""
 	entry = footprintStore().get(positions)
 	if entry and entry["result"] is not None:
 		st.rerun()
@@ -328,8 +328,7 @@ def resultsPage():
 		focusId = st.selectbox("Map view", [None] + list(names), key = "mapFocus",
 			format_func = lambda buildingId: "All results" if buildingId is None else names[buildingId])
 		focusRow = next((row for row in located if str(row["buildingId"]) == focusId), None)
-		deck = rankingDeck(rows, st.session_state.selectedId, dark = darkTheme(), buildings = buildings,
-			queryDate = ranking.get("queryDate"), city = ranking.get("city", "Houston"), focusRow = focusRow)
+		deck = rankingDeck(rows, st.session_state.selectedId, dark = darkTheme(), buildings = buildings, focusRow = focusRow)
 		if deck is None:
 			st.info("No coordinates for these buildings, so there is no map.")
 		else:
@@ -338,20 +337,15 @@ def resultsPage():
 			if picked and picked != st.session_state.lastMapPick:  # a new click on the map, not a stale selection
 				st.session_state.selectedId = st.session_state.lastMapPick = picked
 				st.rerun()
-			st.caption(f"{summaryText(ranking)} Orange is the best payback; dot size is system size.")
+			st.caption(f"{summaryText(ranking)} Green is the best payback; red is the lowest; dot size is system size.")
 			notes = []
-			if ranking.get("queryDate"):
-				sunTime = solarNoon(deck.initial_view_state.latitude, deck.initial_view_state.longitude, ranking["queryDate"],
-					ranking.get("city", "Houston"))
-				notes.append(f"Shadows: solar noon on {ranking['queryDate']} ({sunTime:%H:%M %Z}), visual only.")
 			if geometry is None:
-				notes.append("Loading 3D building footprints from OpenStreetMap.")
+				notes.append("Loading building footprints from OpenStreetMap.")
 			elif buildings:
-				known = sum(building["heightM"] > 0 for building in buildings)
-				notes.append(f"Buildings: © OpenStreetMap contributors (ODbL), {len(buildings)} footprints, {known} with tagged "
-					"heights (others flat); not CoStar property boundaries.")
+				notes.append(f"Buildings: © OpenStreetMap contributors (ODbL), {len(buildings)} flat footprints; not CoStar "
+					"property boundaries.")
 			elif geometry["warning"].startswith("Building geometry unavailable"):
-				notes.append("3D building footprints are unavailable right now (OpenStreetMap did not answer), so the "
+				notes.append("Building footprints are unavailable right now (OpenStreetMap did not answer), so the "
 					"map shows the ranked points only.")
 			elif geometry["warning"]:
 				notes.append(geometry["warning"])

@@ -186,7 +186,7 @@ def test_model_in_use_is_shown_and_a_quota_fallback_flips_the_switch_to_local(mo
 	at = start(monkeypatch, QuotaSwitchAgent())
 	assert at.segmented_control(key="aiMode").value == "cloud"
 	assert sidebarModel(at) == ["Model: Gemini · gemini-4-hydrogen"]
-	assert "Gemini: :green[Active]" in [m.value for m in at.sidebar.markdown]
+	assert "Gemini: :green[ACTIVE]" in [m.value for m in at.sidebar.markdown]
 
 	button(at, "Run analysis").click().run()
 	assert not at.exception and title(at) == "Results" and "did not rank buildings" in text(at) and "Reply 1." in text(at)
@@ -220,7 +220,7 @@ def test_local_mode_lists_ollama_models_and_builds_a_local_agent(monkeypatch, tm
 	at.segmented_control(key="aiMode").set_value("local").run()
 	picker = at.selectbox(key="localModel")
 	assert picker.options == ["llama3.2:3b", "qwen3.5:4b"] and picker.value == "qwen3.5:4b"  # the suggested default
-	assert "Ollama: :green[Active]" in [m.value for m in at.sidebar.markdown]
+	assert "Ollama: :green[ACTIVE]" in [m.value for m in at.sidebar.markdown]
 	picker.select("llama3.2:3b").run()
 	assert sidebarModel(at) == ["Model: Ollama · llama3.2:3b (local)"]
 	button(at, "Run analysis").click().run()
@@ -232,7 +232,7 @@ def test_local_mode_without_ollama_disables_run(monkeypatch):
 	at = start(monkeypatch, FakeAgent())
 	at.segmented_control(key="aiMode").set_value("local").run()
 	assert not at.exception and button(at, "Run analysis").disabled
-	assert "Ollama: :red[Offline]" in [m.value for m in at.sidebar.markdown]
+	assert "Ollama: :red[OFFLINE]" in [m.value for m in at.sidebar.markdown]
 	assert any("Ollama is not running" in c.value for c in at.main.caption)
 
 
@@ -240,5 +240,5 @@ def test_cloud_mode_without_a_gemini_key_disables_run(monkeypatch):
 	monkeypatch.setattr(agent.agent, "hasGeminiKey", lambda: False)
 	at = start(monkeypatch, FakeAgent())
 	assert not at.exception and button(at, "Run analysis").disabled
-	assert "Gemini: :red[Offline]" in [m.value for m in at.sidebar.markdown]
+	assert "Gemini: :red[OFFLINE]" in [m.value for m in at.sidebar.markdown]
 	assert sidebarModel(at) == ["Model: unavailable · GOOGLE_API_KEY is not set, so the cloud model cannot run."]

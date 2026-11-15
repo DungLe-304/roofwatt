@@ -10,6 +10,7 @@ import streamlit.components.v1 as components
 
 import config
 from ui.whatif import defaultAssumptions
+from ui.palette import FONT, palette
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 DEMO_QUERY = "Find the 10 office buildings in Houston with the best solar payback and draft a pitch for the top one."
@@ -143,7 +144,7 @@ def kpiRow(result: dict, rows: list[dict]) -> None:
 
 
 def rankedList(rows: list[dict], selectedId: str, height: int, onView) -> None:
-	"""Top buildings as flat rows; #1 carries a small orange dot. View opens the Building page via `onView(id)`."""
+	"""Top buildings as flat rows; #1 carries a mauve dot. View opens the Building page via `onView(id)`."""
 	with st.container(height=height, border=False):
 		for row in rows:
 			buildingId = str(row["buildingId"])
@@ -164,11 +165,20 @@ def rankedList(rows: list[dict], selectedId: str, height: int, onView) -> None:
 
 def copyButton(text: str, dark: bool) -> None:
 	"""Copy-to-clipboard button (components iframe; Streamlit allows clipboard-write there)."""
-	ink, paper, line = ("#F5F5F7", "#1C1C1E", "#38383A") if dark else ("#1D1D1F", "#FFFFFF", "#E5E5EA")
+	colors = palette(dark)
+	ink, paper, line = colors["text"], colors["base"], colors["border"]
 	components.html(f"""
-	<style>body {{ margin: 0; }}</style>
-	<button id="copy" style="width:100%;height:40px;border-radius:12px;border:1px solid {line};background:{paper};
-		color:{ink};font:500 16px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">Copy</button>
+	<style>
+    @font-face {{
+        font-family: "{FONT}";
+        src: url("app/static/fonts/CaskaydiaCoveNerdFontMono-Regular.ttf") format("truetype");
+        font-weight: 400; font-display: swap;
+    }}
+    body {{ margin: 0; }}
+    button:focus-visible {{ outline: 2px solid {colors["mauve"]}; outline-offset: -3px; }}
+    </style>
+	<button id="copy" style="width:100%;height:40px;border-radius:0;border:1px solid {line};background:{paper};
+		color:{ink};font:400 16px &quot;{FONT}&quot;,monospace;cursor:pointer">Copy</button>
 	<script>
 	const text = {json.dumps(text)};
 	const button = document.getElementById("copy");
