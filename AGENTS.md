@@ -36,7 +36,7 @@ agent/tools.py      tool wrappers exposed to the agent
 data/costar_client.py  CoStar building search/details
 data/imagery.py     Vexcel aerial imagery (Matterport stretch)
 data/cache.py       response cache
-ui/components.py    page blocks (branch minimal-ui): sidebar nav, query form, KPI tiles, ranked list, letter, assumptions
+ui/components.py    page blocks: sidebar nav, query form, KPI tiles, ranked list, letter, assumptions
 ui/styles.py        the only custom CSS (currentColor-based, works in light and dark; theme in .streamlit/config.toml)
 ui/ranking.py       pydeck map: Khoa's tilted 3D OSM buildings + sun, #1 orange / others blue, light or dark basemap
 ui/sunlight.py      solar-noon timestamp for the map's lighting (Khoa)
@@ -95,7 +95,7 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Fable 5.2) - 2026-11-14 (branch `minimal-ui`)
+Claude Code (Opus 5.5) - 2026-11-14 (`main` = `master`)
 
 ## Current Objective
 Agent + chat UI answer the demo query over all Houston offices. Gemini quota is covered by a local Ollama
@@ -208,7 +208,7 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   Shown as a caption under each reply (stored per message as `model`) and in the sidebar (placeholder filled at the
   end of the run, so a mid-request switch shows). `tests/test_app.py` clears `st.cache_resource` per test. 78 tests.
 
-- Branch `minimal-ui` (from main `d7e2194`, not merged): minimal Apple-style UI with native light and dark themes
+- Branch `minimal-ui` (merged into `main` in `494babf`): minimal Apple-style UI with native light and dark themes
   (`[theme.light]` / `[theme.dark]`, follows the system; switch in the app menu, there is no API to switch from code).
   Five `st.navigation` pages as functions in `app.py` (Analyze, Results, Building, Proposal, Assumptions) with a custom
   sidebar (`st.page_link`); results stay in `st.session_state.run`. Results map = Khoa's 3D map (pitch 55, OSM
@@ -227,16 +227,27 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
 - Key leak fix: PVWatts errors carried the request URL with `api_key` into tool output (agent + UI). The NLR key now
   goes in the `X-Api-Key` header (checked live); PVWatts and Vexcel errors redact the key (Vexcel only takes
   `api_key` in the URL). Repo, cache and git history checked: no key. 99 tests.
+- `minimal-ui` merged into `main` (`494babf`), which fixes the broken `d7e2194`. Vexcel top 20 re-prefetched for the
+  new footprints. Assumptions form: `enter_to_submit=False` (no "Press Enter" hint; Recalculate only), usable roof
+  factor slider 0.30-1.00. Streamlit skill symlinks (`.agents/`, `.claude/skills/developing-with-streamlit`, they point
+  into `.venv`) untracked and gitignored; run `streamlit skills` locally to get them.
+- Remote has two branches, `main` (default) and `master`; both at the same commit. Push to both:
+  `git push origin main && git push origin main:master`.
 
 ## Modified Files
+- Roof fix + key redaction: `models/{roof,schemas,solar}.py`, `data/{costar_client,imagery}.py`, `agent/tools.py`,
+  `ui/detail.py`, `tests/test_{roof,solar,imagery}.py`, `docs/PROJECT_PLAN.md`
+- Minimal UI: `app.py`, `.streamlit/config.toml`, `ui/{styles,components,detail,ranking,trace}.py`, `ui/theme.py`
+  (deleted), `tests/test_{app,ranking}.py`, `.gitignore`
 - Khoa (fallback): `agent/agent.py`, `agent/tools.py` (docstring), `app.py`, `ui/ranking.py` (reformat), `pyproject.toml`, `uv.lock`
 - UI redesign: `app.py`, `.streamlit/config.toml`, `ui/{components,theme,whatif,proposal}.py` (new),
   `ui/{detail,ranking,trace}.py`, `agent/results.py` (`toolSummary`), `agent/agent.py` (config passthrough only),
   `tests/test_{app,detail,ranking}.py`, `tests/test_{whatif,proposal,trace}.py` (new), `AGENTS.md`
 
 ## Known Issues
-- **`origin/main` (`d7e2194`) does not start**: Khoa's merge mixed the old chat `app.py` with the redesign
-  (`ImportError: selectedIndex`), 6 tests fail there. `minimal-ui` rewrites `app.py`; merging it fixes main.
+- The last-run fallback (`cache/ui/last_run.json`) still holds numbers from the old roof formula until one
+  successful run replaces it.
+- NLR (PVWatts) key was printed in a session log before the redaction fix: rotate it at developer.nlr.gov.
 - Overpass (OSM footprints) answered HTTP 429 / timed out on 2026-11-14 evening: the 3D buildings may be missing in
   the demo unless `cache/osm-buildings/` was filled earlier by a successful load of the same top 10. The map still
   shows the ranked points and says the footprints are unavailable.
@@ -271,8 +282,8 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   CoStar data terms before submission. Cloning needs `git lfs`.
 
 ## Immediate Next Steps
-1. Decide between `minimal-ui`, `retro-ui` and the light UI, merge the choice into `main` (main is broken now).
-   Open Results once when Overpass answers, so the 3D footprints are cached on disk for the demo.
+1. Rotate the NLR key. Open Results once when Overpass answers, so the 3D footprints are cached on disk for the demo.
+   `retro-ui` stays a local alternative (not pushed).
 2. On the demo machine: `ollama pull qwen3.5:4b`, run `python tools/prefetch_images.py`, then run the demo query
    on both Gemini and Ollama. Check that Qwen calls `rankBuildings` and that the "Agent steps" trace looks right.
 3. Live demo once Gemini quota is back: check the live trace, the proposal split and the Copy button in a real browser.
