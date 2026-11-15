@@ -28,20 +28,53 @@ def darkTheme() -> bool:
 		return False
 
 
-def sidebar(pages: dict, city: str):
-	"""Brand, the five page links, and a footer pinned to the bottom. Returns a placeholder for the model label,
-	filled after the page has run (a quota error during the run switches the model)."""
+AI_MODES = {"cloud": ":material/cloud: Cloud", "local": ":material/computer: Local"}
+
+
+def aiEngine(localModels: list[str], localProblem: str | None, geminiReady: bool, defaultLocal: str) -> str | None:
+	"""Cloud / Local switch (st.session_state.aiMode) and, in Local mode, the Ollama model picker
+	(st.session_state.localModel). Returns why the agent cannot run in the chosen mode, or None."""
+	st.segmented_control("AI engine", list(AI_MODES), format_func=AI_MODES.get, key="aiMode", required=True,
+		width="stretch")
+	if st.session_state.get("fallbackNote"):
+		st.caption(st.session_state.fallbackNote)
+	if st.session_state.aiMode == "local":
+		if localModels:
+			if st.session_state.get("localModel") not in localModels:
+				st.session_state.localModel = defaultLocal if defaultLocal in localModels else localModels[0]
+			_status("Ollama", True, "Models are listed from Ollama on this machine.")
+			st.selectbox("Local model", localModels, key="localModel", help="Models pulled into Ollama on this machine.")
+			return None
+		problem = localProblem or "Ollama is running but has no models yet."
+		_status("Ollama", False, f"{problem} Install Ollama and pull any model, for example `ollama pull {defaultLocal}` "
+			"(suggested).")
+		return problem
+	if not geminiReady:
+		_status("Gemini", False, "GOOGLE_API_KEY is not set. Add it to .env.")
+		return "GOOGLE_API_KEY is not set, so the cloud model cannot run."
+	_status("Gemini", True, "Gemini API. Switches to the local model if the free quota runs out.")
+	return None
+
+
+def _status(engine: str, active: bool, help: str) -> None:
+	st.markdown(f"{engine}: {':green[Active]' if active else ':red[Offline]'}", help=help)
+
+
+def sidebar(pages: dict, city: str, engine=None):
+	"""Brand, the five page links, the AI engine switch (`engine()`), and a footer pinned to the bottom.
+	Returns (placeholder for the model label, engine result); the label is filled after the page has run."""
 	logo = base64.b64encode((ASSETS / "roofwatt-logo-square.svg").read_bytes()).decode()
 	st.markdown(f"<div class='rw-brand'><img src='data:image/svg+xml;base64,{logo}' alt=''/><span>RoofWatt</span></div>",
 		unsafe_allow_html=True)
 	for page in pages.values():
 		st.page_link(page)
+	problem = engine() if engine else None
 	with st.container(key="sidebar-foot"):
 		st.markdown(html.escape(city))
 		st.markdown("Appearance follows your system. Change it in the menu at the top right.")
 		model = st.empty()
 		st.markdown("Built at HackPrinceton F26")
-	return model
+	return model, problem
 
 
 def emptyState(analyzePage) -> None:
@@ -56,7 +89,7 @@ def _useExample() -> None:
 	st.session_state.exampleChips = None
 
 
-def queryForm(default: str = DEMO_QUERY) -> tuple[str, bool]:
+def queryForm(default: str = DEMO_QUERY, disabled: bool = False) -> tuple[str, bool]:
 	"""Prefilled query field, example chips and the Run button. Returns (query, run clicked)."""
 	st.session_state.setdefault("query", default)  # widget state is dropped while another page is shown
 	query = st.text_area("Question", key="query", height=96, label_visibility="collapsed",
@@ -65,11 +98,11 @@ def queryForm(default: str = DEMO_QUERY) -> tuple[str, bool]:
 	with chips:
 		st.pills("Examples", list(EXAMPLE_QUERIES), key="exampleChips", on_change=_useExample, label_visibility="collapsed")
 	with button:
-		run = st.button("Run analysis", type="primary", width="stretch")
+		run = st.button("Run analysis", type="primary", width="stretch", disabled=disabled)
 	return query.strip(), run
 
 
-def structuredSearch() -> tuple[bool, dict]:
+def structuredSearch(disabled: bool = False) -> tuple[bool, dict]:
 	"""Khoa's structured search form, tucked under the query. Returns (submitted, filters)."""
 	with st.expander("Structured search"):
 		with st.form("propertyFilters", border=False):
@@ -84,7 +117,7 @@ def structuredSearch() -> tuple[bool, dict]:
 					help="Rank orders buildings by solar payback; Search lists matching buildings."),
 				"randomize": right.checkbox("Randomize search results", value=False),
 			}
-			submitted = st.form_submit_button("Run search")
+			submitted = st.form_submit_button("Run search", disabled=disabled)
 	return submitted, filters
 
 

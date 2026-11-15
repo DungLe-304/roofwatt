@@ -30,6 +30,8 @@ class Settings(BaseModel):
 	agentContextCharacters: int = 10000
 	agentMaxOutputTokens: int = 1200
 	agentMaxRetries: int = 2
+	ollamaHost: str = "http://localhost:11434"  # Local AI mode: Ollama server (another machine works too)
+	localModelName: str = "qwen3.5:4b"  # Local AI mode default; any model pulled into Ollama can be picked in the UI
 
 def loadSettings() -> Settings:
 	configValues = dict(dotenvValues(rootPath / ".env"))

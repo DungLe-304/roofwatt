@@ -4,6 +4,8 @@ from config import loadSettings
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
+import os
+import requests
 from textwrap import dedent
 
 load_dotenv()
@@ -41,12 +43,28 @@ systemPrompt = dedent("""
 		""").strip()
 
 
-fallbackModelName = "qwen3.5:4b"
+CLOUD, LOCAL = "cloud", "local"  # the two AI modes the UI offers: Gemini API, or a model served by local Ollama
+fallbackModelName = loadSettings().localModelName  # default local model (qwen3.5:4b)
 
 
 def isResourceExhausted(error):
 	errorText = str(error).upper()
 	return "RESOURCE_EXHAUSTED" in errorText or "429" in errorText
+
+
+def hasGeminiKey():
+	return bool(os.environ.get("GOOGLE_API_KEY", "").strip())
+
+
+def listLocalModels(host = None, timeout = 2):
+	"""Models pulled into Ollama (GET /api/tags). Returns (names, problem); problem is None when Ollama answered."""
+	host = (host or loadSettings().ollamaHost).rstrip("/")
+	try:
+		response = requests.get(f"{host}/api/tags", timeout = timeout)
+		response.raise_for_status()
+		return sorted(model["name"] for model in response.json().get("models", []) if model.get("name")), None
+	except (requests.RequestException, ValueError, KeyError, TypeError):
+		return [], f"Ollama is not running at `{host}`."
 
 
 class QuotaFallbackAgent:
@@ -68,20 +86,38 @@ class QuotaFallbackAgent:
 			return self.localAgent.invoke(state, config)
 
 
-def createRoofWattAgent(pingGemini = False):
+def createLocalAgent(modelName = None):
+	"""Deep agent on a local Ollama model (same prompt and tools as the cloud agent)."""
 	settings = loadSettings()
-	localModel = ChatOllama(model = fallbackModelName, num_ctx = settings.agentContextCharacters, num_predict = settings.agentMaxOutputTokens)
-	localAgent = create_deep_agent(model = localModel, system_prompt = systemPrompt, tools = roofWattTools)
-	geminiModel = ChatGoogleGenerativeAI(model = settings.modelName.split(":", 1)[-1], max_output_tokens = settings.agentMaxOutputTokens, max_retries = settings.agentMaxRetries)
-	geminiAgent = create_deep_agent(model = geminiModel, system_prompt = systemPrompt, tools = roofWattTools)
-	fallbackAgent = QuotaFallbackAgent(geminiAgent, localAgent)
+	localModel = ChatOllama(model = modelName or settings.localModelName, base_url = settings.ollamaHost,
+		num_ctx = settings.agentContextCharacters, num_predict = settings.agentMaxOutputTokens)
+	return create_deep_agent(model = localModel, system_prompt = systemPrompt, tools = roofWattTools)
 
+
+def createCloudAgent():
+	"""Deep agent on Gemini (GOOGLE_API_KEY)."""
+	settings = loadSettings()
+	geminiModel = ChatGoogleGenerativeAI(model = settings.modelName.split(":", 1)[-1], max_output_tokens = settings.agentMaxOutputTokens, max_retries = settings.agentMaxRetries)
+	return create_deep_agent(model = geminiModel, system_prompt = systemPrompt, tools = roofWattTools)
+
+
+def createAgent(mode = CLOUD, localModelName = None):
+	"""Agent for the chosen AI mode. Cloud keeps the local model as a fallback when the Gemini quota runs out
+	(`useLocalModel` turns True); Local runs only on Ollama."""
+	if mode == LOCAL:
+		return createLocalAgent(localModelName)
+	return QuotaFallbackAgent(createCloudAgent(), createLocalAgent(localModelName))
+
+
+def createRoofWattAgent(pingGemini = False):
+	"""Cloud agent with local fallback (kept for existing callers). pingGemini spends one request to detect an
+	exhausted quota up front."""
+	fallbackAgent = createAgent(CLOUD)
 	if pingGemini:
 		try:
-			geminiModel.invoke("Reply with OK only.")
+			ChatGoogleGenerativeAI(model = loadSettings().modelName.split(":", 1)[-1], max_retries = 0).invoke("Reply with OK only.")
 		except Exception as error:
 			if not isResourceExhausted(error):
 				raise
 			fallbackAgent.useLocalModel = True
-
 	return fallbackAgent

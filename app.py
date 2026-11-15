@@ -8,13 +8,13 @@ from pathlib import Path
 import streamlit as st
 
 import data.buildings as osm
-from agent.agent import createRoofWattAgent, fallbackModelName
+import agent.agent as agents
 from agent.results import rankingResult, roofImages, toolTrace
 from agent.tools import getRoofImage
 from config import loadSettings
 from data.costar_client import CostarClient, getBuilding
 from ui.components import (DEMO_QUERY, assumptionsForm, darkTheme, emptyState, kpiRow, letter, queryForm, rankedList,
-	sidebar, structuredSearch)
+	aiEngine, sidebar, structuredSearch)
 from ui.detail import showDetail
 from ui.proposal import splitProposal
 from ui.ranking import MAP_HEIGHT_PX, addCoordinates, rankingDeck, rankingTable, selectedFromMap, summaryText
@@ -35,13 +35,26 @@ injectCss()
 
 
 @st.cache_resource
-def loadAgent(checkGemini = True):
-	return createRoofWattAgent(pingGemini = checkGemini)
+def loadAgent(mode, localModel):
+	"""One agent per (AI mode, local model): Cloud = Gemini with a local fallback, Local = Ollama only."""
+	return agents.createAgent(mode, localModel)
+
+
+@st.cache_data(ttl = 15, show_spinner = False)
+def localModels():
+	return agents.listLocalModels()
+
+
+def chosenLocalModel():
+	return st.session_state.get("localModel") or agents.fallbackModelName
+
 
 def modelLabel(agent):
-	"""Which LLM the agent uses now: Gemini, or local Ollama once QuotaFallbackAgent has switched."""
+	"""Which LLM answers: Gemini, local Ollama (Local mode), or Ollama after the Cloud agent hit the Gemini quota."""
+	if st.session_state.get("aiMode") == agents.LOCAL:
+		return f"Model: Ollama · {chosenLocalModel()} (local)"
 	if getattr(agent, "useLocalModel", False):
-		return f"Model: Ollama · {fallbackModelName} (local fallback, Gemini quota exhausted)"
+		return f"Model: Ollama · {chosenLocalModel()} (local fallback, Gemini quota exhausted)"
 	return f"Model: Gemini · {loadSettings().modelName.split(':', 1)[-1]}"
 
 def extractText(content):
@@ -145,9 +158,9 @@ def redrawWhenFootprintsArrive(positions):
 def friendlyError(error):
 	text = str(error)
 	if "429" in text or "RESOURCE_EXHAUSTED" in text:
-		return "Gemini's free quota is used up and the local backup model did not answer. Try again after the quota resets."
+		return "Gemini's free quota is used up and the local model did not answer. Try again after the quota resets."
 	if "ollama" in text.lower() or "Connection refused" in text or "ConnectError" in type(error).__name__:
-		return "The local backup model (Ollama) is not running on this machine, so the agent could not answer."
+		return f"The local model ({chosenLocalModel()}) did not answer: Ollama is not running, or the model is not pulled."
 	return f"The agent could not finish this request: {text[:240]}"
 
 
@@ -256,8 +269,10 @@ def analyzePage():
 	st.title("Analyze")
 	st.markdown("<p class='rw-lede'>Rank Houston commercial rooftops by solar payback, then draft the pitch for the "
 		"best one.</p>", unsafe_allow_html = True)
-	query, runClicked = queryForm(st.session_state.get("lastQuery") or DEMO_QUERY)
-	searchSubmitted, filters = structuredSearch()
+	query, runClicked = queryForm(st.session_state.get("lastQuery") or DEMO_QUERY, disabled = bool(ENGINE_PROBLEM))
+	if ENGINE_PROBLEM:
+		st.caption(f"{ENGINE_PROBLEM} Change the AI engine in the sidebar.")
+	searchSubmitted, filters = structuredSearch(disabled = bool(ENGINE_PROBLEM))
 
 	request = None
 	if searchSubmitted:
@@ -265,8 +280,15 @@ def analyzePage():
 			filters["randomize"], filters["mode"])
 	elif runClicked and query:
 		request = query
-	if request and executeRequest(AGENT, AGENT_ERROR, request):
-		st.switch_page(PAGES["results"])
+	if request:
+		succeeded = executeRequest(AGENT, AGENT_ERROR, request)
+		if st.session_state.aiMode == agents.CLOUD and getattr(AGENT, "useLocalModel", False):
+			# Gemini quota ran out during this run: flip the switch to Local (applied before the sidebar redraws)
+			st.session_state.switchToLocal = True
+		if succeeded:
+			st.switch_page(PAGES["results"])
+		elif st.session_state.get("switchToLocal"):
+			st.rerun()
 
 	if st.session_state.notice:
 		st.error(st.session_state.notice)
@@ -400,13 +422,18 @@ def assumptionsPage():
 
 if __name__ == "__main__":
 	for name, default in {"run": None, "chatMessages": [], "selectedId": None, "assumptions": None, "notice": None,
-			"lastMapPick": None}.items():
+			"lastMapPick": None, "aiMode": agents.CLOUD}.items():
 		st.session_state.setdefault(name, default)
-
-	try:
-		AGENT, AGENT_ERROR = loadAgent(), None
-	except Exception as error:
-		AGENT, AGENT_ERROR = None, friendlyError(error)
+	if st.session_state.pop("switchToLocal", False):
+		st.session_state.aiMode = st.session_state.lastMode = agents.LOCAL  # automatic switch, not the viewer's pick
+		st.session_state.fallbackNote = "Switched from Cloud: the Gemini free quota is used up."
+	mode = st.session_state.aiMode
+	retryGemini = False
+	if mode != st.session_state.get("lastMode"):
+		if st.session_state.get("lastMode") is not None:
+			st.session_state.fallbackNote = None  # the viewer picked a mode: drop the automatic-switch note
+			retryGemini = mode == agents.CLOUD
+		st.session_state.lastMode = mode
 
 	PAGES = {
 		"analyze": st.Page(analyzePage, title = "Analyze", icon = ":material/search:", url_path = "analyze", default = True),
@@ -417,8 +444,19 @@ if __name__ == "__main__":
 	}
 	page = st.navigation(list(PAGES.values()), position = "hidden")
 	city = ((st.session_state.run or {}).get("ranking") or {}).get("city")
+	def engine():
+		names, problem = localModels() if st.session_state.aiMode == agents.LOCAL else ([], None)
+		return aiEngine(names, problem, agents.hasGeminiKey(), agents.fallbackModelName)
+
 	with st.sidebar:
-		modelSlot = sidebar(PAGES, CITY_LABELS.get(city, "Houston, TX"))
+		modelSlot, ENGINE_PROBLEM = sidebar(PAGES, CITY_LABELS.get(city, "Houston, TX"), engine)
+
+	try:
+		AGENT, AGENT_ERROR = (None, ENGINE_PROBLEM) if ENGINE_PROBLEM else (loadAgent(mode, chosenLocalModel()), None)
+	except Exception as error:
+		AGENT, AGENT_ERROR = None, friendlyError(error)
+	if retryGemini and AGENT is not None:
+		AGENT.useLocalModel = False  # choosing Cloud again retries Gemini after an earlier quota fallback
 
 	def showModel():
 		modelSlot.markdown(modelLabel(AGENT) if AGENT is not None else f"Model: unavailable · {AGENT_ERROR}")

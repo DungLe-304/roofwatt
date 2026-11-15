@@ -19,7 +19,7 @@ solar economics: energy, savings, payback, CO₂ avoided, plus a drafted proposa
 | Part | Choice |
 |---|---|
 | Language | Python 3.11+ (local: 3.13) |
-| Agent | LangChain `deepagents` + Gemini (`google_genai:gemini-4-hydrogen`, key `GOOGLE_API_KEY`); fallback: local Ollama `qwen3.5:4b` when Gemini quota is exhausted |
+| Agent | LangChain `deepagents`; AI engine switch: Cloud = Gemini (`google_genai:gemini-4-hydrogen`, key `GOOGLE_API_KEY`, falls back to local on quota) or Local = any Ollama model (default `qwen3.5:4b`) |
 | Building data / imagery | CoStar hackathon toolkit (CoStar, Vexcel; Matterport stretch). API shapes are **unverified placeholders** |
 | Solar energy | NREL PVWatts v8 API |
 | Images | Pillow / OpenCV (stretch: Segment Anything) |
@@ -31,7 +31,7 @@ solar economics: energy, savings, payback, CO₂ avoided, plus a drafted proposa
 ```
 app.py              Streamlit UI: query bar, live tool trace, KPIs, map + ranked cards, detail, proposal letter
 config.py           ALL assumptions, each with a source string (several still TODO)
-agent/agent.py      deepagents setup + system prompt + Gemini → Ollama quota fallback
+agent/agent.py      deepagents setup + system prompt; createAgent(cloud|local), listLocalModels (Ollama), quota fallback
 agent/tools.py      tool wrappers exposed to the agent
 data/costar_client.py  CoStar building search/details
 data/imagery.py     Vexcel aerial imagery (Matterport stretch)
@@ -95,7 +95,7 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Opus 5.5) - 2026-11-14 (`main` = `master`)
+Claude Code (Opus 5.5) - 2026-11-14 (branch `ai-mode`, not merged)
 
 ## Current Objective
 Agent + chat UI answer the demo query over all Houston offices. Gemini quota is covered by a local Ollama
@@ -233,6 +233,13 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   into `.venv`) untracked and gitignored; run `streamlit skills` locally to get them.
 - Remote has two branches, `main` (default) and `master`; both at the same commit. Push to both:
   `git push origin main && git push origin main:master`.
+- AI engine switch (branch `ai-mode`): sidebar `st.segmented_control` Cloud / Local (`st.session_state.aiMode`, default
+  Cloud). Local lists Ollama models (`agent.agent.listLocalModels`, `GET /api/tags`, cached 15 s) in a picker
+  (`localModel`); Ollama down / no models / no `GOOGLE_API_KEY` disables Run with the reason. `createAgent(mode,
+  localModelName)`: Local = Ollama only, Cloud = `QuotaFallbackAgent` (Gemini, then the chosen local model); one agent
+  per (mode, model) via `st.cache_resource`. A quota fallback flips the switch to Local with a note; picking Cloud
+  resets `useLocalModel` to retry Gemini. Startup Gemini ping removed (`createRoofWattAgent(pingGemini)` kept for
+  callers). New Settings `ollamaHost`, `localModelName`. README: Ollama setup. 108 tests (5 app, 5 agent new).
 
 ## Modified Files
 - Roof fix + key redaction: `models/{roof,schemas,solar}.py`, `data/{costar_client,imagery}.py`, `agent/tools.py`,
@@ -262,11 +269,9 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   list from the finance tools and require it in pitches.
 - Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen` (exhausted 2026-11-14 ~15:45 ET, resets ~03:00 ET
   Nov 15); one demo query uses ~3-12 requests. The Ollama fallback keeps the demo running, but:
-  - Ollama must be running on the demo machine (default `localhost:11434`) with `ollama pull qwen3.5:4b` done;
-    the code has no host setting, so it only works on a machine that runs Ollama itself (Khoa's laptop).
-    Not installed on Tony's machine.
+  - Ollama must be running (default `localhost:11434`, `ollamaHost` setting for another machine) with a model
+    pulled. Not installed on Tony's machine, so Local mode is only tested with fake agents.
   - Not yet checked: whether a 4B model calls the tools reliably and keeps every number from tool output.
-  - The startup ping costs 1 Gemini request each time the agent is created (`st.cache_resource` makes that once per server).
 - Proposal panel splits the letter out of the agent's answer at a pitch/proposal/letter heading or a "Dear" line;
   if the agent formats it differently the whole answer is shown as "Agent answer". Not yet seen with a live reply.
 - Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background. Inter loads from
