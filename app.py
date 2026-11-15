@@ -437,8 +437,11 @@ if __name__ == "__main__":
 				"(or enable Git LFS on the host) and restart the app.", title = "Building data is missing")
 			st.stop()
 	savedEngine = loadEngineChoice()
+	startMode = savedEngine.get("aiMode", agents.CLOUD)
+	if startMode == agents.LOCAL and "aiMode" not in st.session_state and localModels()[1]:
+		startMode = agents.CLOUD  # the saved choice is shared by every viewer: never open on a Local engine with no Ollama
 	for name, default in {"run": None, "chatMessages": [], "selectedId": None, "assumptions": None, "notice": None,
-			"lastMapPick": None, "aiMode": savedEngine.get("aiMode", agents.CLOUD)}.items():
+			"lastMapPick": None, "aiMode": startMode}.items():
 		st.session_state.setdefault(name, default)
 	if savedEngine.get("localModel"):
 		st.session_state.setdefault("localModel", savedEngine["localModel"])

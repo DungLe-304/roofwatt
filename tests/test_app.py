@@ -305,6 +305,17 @@ def test_local_mode_without_ollama_disables_run(monkeypatch):
 	assert any("Ollama is not running" in c.value for c in at.main.caption)
 
 
+def test_a_saved_local_choice_opens_on_cloud_when_ollama_is_not_running(monkeypatch):
+	# The saved engine is shared by every viewer of a deployed app, where Ollama never runs
+	monkeypatch.setattr(agent.agent, "listLocalModels", lambda: ([], "Ollama is not running at http://localhost:11434."))
+	at = start(monkeypatch, FakeAgent())
+	at.segmented_control(key="aiMode").set_value("local").run()
+	assert at.segmented_control(key="aiMode").value == "local"  # the viewer's own pick still applies
+	nextViewer = start(monkeypatch, FakeAgent())
+	assert not nextViewer.exception and nextViewer.segmented_control(key="aiMode").value == "cloud"
+	assert not button(nextViewer, "Run analysis").disabled
+
+
 def test_cloud_mode_without_a_gemini_key_disables_run(monkeypatch):
 	monkeypatch.setattr(agent.agent, "hasGeminiKey", lambda: False)
 	at = start(monkeypatch, FakeAgent())

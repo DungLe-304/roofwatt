@@ -123,7 +123,10 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   `cache/pvwatts/` is committed so a fresh host does not re-query PVWatts for all 171 sizes; the app stops with a
   clear error if `data/commercial-property.jsonl` is only a Git LFS pointer. Keys go in the app's Secrets (root-level
   TOML keys become environment variables). Vercel cannot host it (serverless, no long-lived Streamlit server).
-- 119 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- Deployed: https://roofwatt.streamlit.app (Community Cloud, `main`). Checked over the websocket: the app loads,
+  the CoStar LFS data is present, Cloud shows Gemini ACTIVE with Run enabled. Only Cloud works there (no Ollama).
+  A saved Local choice (`cache/ui/engine.json`, shared by every viewer) now opens on Cloud when Ollama is not running.
+- 120 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues
@@ -151,8 +154,8 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
 
 ## Immediate Next Steps
-0. Deploy on share.streamlit.io: repo `DungLe-304/roofwatt`, branch `main`, file `app.py`, Python 3.13, Secrets
-   `GOOGLE_API_KEY`, `NLR_API_KEY`, `VEXCEL_API_KEY`. Only Cloud (Gemini) works there: no Ollama on the host.
+0. Deployed app: no full agent run tested yet (Gemini quota, empty-reply issue below). Secrets are set in the
+   Community Cloud app settings; keys never go in the repo.
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
 2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`.
 3. Fix the empty Gemini reply (raise the output cap or limit Gemini thinking), then one Gemini demo run after the
