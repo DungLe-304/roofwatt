@@ -38,7 +38,7 @@ data/imagery.py     Vexcel aerial imagery (Matterport stretch)
 data/cache.py       response cache
 ui/components.py    page blocks: header, query bar, empty state, KPI row, ranked cards, proposal, sidebars
 ui/theme.py         brand colors + custom CSS (theme itself in .streamlit/config.toml)
-ui/ranking.py       pydeck map (light, size ~ kW, rank 1 orange) + table for a rankBuildings result
+ui/ranking.py       pydeck map (light, size ~ kW, Khoa's green→yellow→red rank gradient) + table
 ui/detail.py        detail panel for the selected building (roof image + metrics with source tooltips)
 ui/trace.py         live tool trace (LangChain callback) + "How the agent got here" expander
 ui/whatif.py        sidebar what-if recalculation of the shown rows (models.finance, no API calls)
@@ -184,7 +184,7 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
 - UI redesign (light brand theme: navy #13294B, orange #FF9F1C, blue #2F80ED, Inter with offline fallback):
   header + query bar with demo query and example chips; live tool trace while the agent runs (worker thread +
   `ui.trace.LiveTrace` callback, `QuotaFallbackAgent.invoke(state, config=None)` passes config through), then a
-  "How the agent got here" expander; 4 KPI cards (buildings screened, top-N kW, $/yr, t CO₂/yr); map (click a dot)
+  "How the agent got here" expander; 4 KPI cards (buildings screened, top-N kW, $/yr, t CO₂/yr); map (rank gradient, click a dot)
   + ranked cards (Details selects); detail panel with metric tooltips citing config; proposal letter card with
   Copy / Download .md; empty state (Scan → Analyze → Pitch). Sidebar (collapsed): what-if assumptions with
   Recalculate (rate, flat $/W, ITC %, usable factor; recalculates the shown rows only, labeled what-if) and Khoa's

@@ -207,7 +207,7 @@ def showRanking(run, ranking):
 			if picked and picked != st.session_state.lastMapPick:  # a new click on the map, not a stale selection
 				st.session_state.selectedId = st.session_state.lastMapPick = picked
 				st.rerun()
-		st.caption(f"{summaryText(ranking)} Orange = best payback; dot size = system size. Click a dot or a card.")
+		st.caption(f"{summaryText(ranking)} Green = best payback, red = slowest of these; dot size = system size. Click a dot or a card.")
 		with st.expander("Table view", icon = ":material/table:"):
 			st.dataframe(rankingTable(rows), hide_index = True, width = "stretch")
 	with listColumn, st.container(key = "panel-list"):
