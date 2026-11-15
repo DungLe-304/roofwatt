@@ -46,7 +46,7 @@ def test_reply_and_roof_image_are_shown_and_kept_in_history(tmp_path, monkeypatc
 		"89504e470d0a1a0a0000000d4948445200000001000000010806000000"
 		"1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082"))
 	fake = FakeAgent(image)
-	monkeypatch.setattr(agent.agent, "createRoofWattAgent", lambda: fake)
+	monkeypatch.setattr(agent.agent, "createRoofWattAgent", lambda **kwargs: fake)
 
 	at = AppTest.from_file("../app.py", default_timeout=30).run()
 	at.chat_input[0].set_value("pitch the top building").run()

@@ -102,12 +102,37 @@ def showRoofImages(images):
 		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
 
 
+@st.cache_data(ttl = 300, show_spinner = False)
+def roofImageFor(buildingId):
+	"""getRoofImage, memoized so reruns (every click) do not refetch or retry a failing Vexcel call (60 s timeout)."""
+	return getRoofImage(buildingId)
+
+
+@st.cache_data(show_spinner = False)
+def lookupBuilding(buildingId):
+	try:
+		return getBuilding(buildingId)
+	except (LookupError, ValueError):
+		return None
+
+
 def showAssistantExtras(message, key):
-	if message.get("ranking"):
-		showRanking(message["ranking"], key = key)
-	showRoofImages(message.get("images", []))
+	"""Tool trace, ranked map/table, detail panel for the selected row, then any other roof images."""
 	if message.get("trace"):
 		showTrace(message["trace"])
+	images = message.get("images", [])
+	ranking = message.get("ranking")
+	if ranking:
+		rows = ranking["ranked"]
+		row = rows[selectedIndex(showRanking(ranking, key = key), len(rows))]
+		imagePath, imageError = dict(images).get(row["buildingId"]), None
+		if not imagePath:
+			imageResult = roofImageFor(row["buildingId"])
+			imagePath, imageError = imageResult.get("imagePath"), imageResult.get("error")
+		showDetail(row, imagePath, imageError, lookupBuilding(row["buildingId"]))
+		rankedIds = {ranked["buildingId"] for ranked in rows}
+		images = [image for image in images if image[0] not in rankedIds]  # already shown in the detail panel
+	showRoofImages(images)
 
 def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
 	filters = f"city={city}, propertyType={propertyType}, minimum gross area={minGrossArea} sq ft, limit={limit}"

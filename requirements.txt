@@ -1,6 +1,7 @@
 deepagents
 langchain
 langchain-google-genai
+langchain-ollama
 streamlit
 streamlit_hotkeys
 pydeck
