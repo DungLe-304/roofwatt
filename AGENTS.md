@@ -114,13 +114,15 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   fixed calls, table + `## Proposal letter`, no file tools); 6 of 7 browser runs gave a full letter with tool numbers.
 - Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`) and
   across reloads / new tabs (last choice saved in `cache/ui/engine.json`, shared by every browser on this server).
-- 113 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- 115 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues
 - Rotate the NLR (PVWatts) key: it was printed in a session log before the redaction fix.
 - Gemini Free Tier: 20 requests/day; one demo query uses ~3–12. The 4B local model still sometimes uses sales
   wording ("excellent investment") against rule 7; its numbers are copied from tools.
+- Local engine: about 1 in 7 browser runs never reached Results within 400 s (cause not yet found; no error in
+  the Streamlit log). A repeated "Dear ..." line is dropped from the shown letter (`ui/proposal.py`).
 - Overpass (OSM) answered 429 / timed out: building footprints show only if `cache/osm-buildings/` was filled earlier.
 - PVWatts answers 429 when `rankBuildings` (8 threads) hits many uncached sizes; warm the cache sequentially.
 - Roof estimate: irregular shapes (V, X plans) can be ~20% over the imaged roof; `USABLE_FACTOR` is unsourced.

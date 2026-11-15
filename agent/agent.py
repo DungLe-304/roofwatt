@@ -60,10 +60,11 @@ localRules = dedent("""
 		   1. One table of the ranked buildings with the columns Rank | Building ID | Address | System (kW) |
 		      Savings ($/yr) | Payback (yr) | CO₂ (t/yr), copied from rankBuildings.
 		   2. The line "## Proposal letter", then a letter to the owner of the rank 1 building:
-		      - Start with "Dear Property Owner," (use the owner name only if getBuilding returned one).
+		      - Start with "Dear Property Owner," (use the owner name only if getBuilding returned one). Write the
+		        greeting once; never start the letter over.
 		      - Two or three short paragraphs with the address, system size (kW), annual energy (kWh), annual
 		        savings, net cost after incentives, simple payback and CO₂ avoided, each copied from a tool.
-		      - Say the figures are estimates from public building data.
+		      - In the last paragraph, say the figures are estimates from public building data.
 		      - End with "Sincerely," and "The RoofWatt team".
 		""").strip()
 localSystemPrompt = f"{systemPrompt}\n\n{localRules}"
