@@ -1,39 +1,32 @@
-import time
+import json
+import os
+import threading
+from datetime import datetime
 from pathlib import Path
 
-import streamlit.components.v1 as components
 import streamlit as st
-import streamlit_hotkeys as hotkeys
 
 from agent.agent import createRoofWattAgent, fallbackModelName
 from agent.results import rankingResult, roofImages, toolTrace
 from agent.tools import getRoofImage
 from config import loadSettings
 from data.costar_client import CostarClient, getBuilding
-from ui.detail import selectedIndex, showDetail
-from ui.ranking import addCoordinates, showRanking
-from ui.trace import showTrace
+from ui.components import (assumptionsSidebar, emptyState, header, injectCss, kpiRow, propertySearchSidebar,
+	proposalPanel, queryBar, rankedCards)
+from ui.detail import showDetail
+from ui.proposal import splitProposal
+from ui.ranking import MAP_HEIGHT_PX, addCoordinates, rankingDeck, rankingTable, selectedFromMap, summaryText
+from ui.trace import LiveTrace, showTrace
+from ui.whatif import recalculate
 
 appRoot = Path(__file__).resolve().parent
 pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
+# Last successful run, shown if the agent fails (offline demo fallback). cache/ is gitignored; tests point this elsewhere.
+lastRunPath = Path(os.environ.get("ROOFWATT_LAST_RUN") or appRoot / "cache" / "ui" / "last_run.json")
 
-st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "expanded")
+st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "collapsed")
+injectCss()
 
-with st.sidebar:
-	with st.form("propertyFilters"):
-		st.header("Property filters")
-		city = st.selectbox("City", ["Houston", "Los Angeles"], index = 0)
-		propertyType = st.selectbox("Property type", ["Office", "Industrial", "GeneralRetail", "Flex", "Multifamily", "Hospitality"], index = 0)
-		minGrossArea = st.number_input("Minimum gross area (sq ft)", min_value = 0, value = 10000, step = 1000)
-		limit = st.number_input("Number of properties", min_value = 1, max_value = 20, value = 10, step = 1)
-		mode = st.radio("Mode", ["Search", "Rank"], index = 0, help = "Search mode finds properties that meet the criteria, while Rank mode ranks the properties by solar potential.")
-		randomize = st.checkbox("Randomize search results", value = False, disabled = mode == "Rank")
-		runSearch = st.form_submit_button("Search properties")
-
-hotkeys.activate([hotkeys.hk("scroll_bottom", "End", ctrl = True, prevent_default = True, help = "Scroll to the latest message")])
-
-st.title("RoofWatt")
-st.caption("A commercial solar analysis agent for properties in Houston and Los Angeles.")
 
 @st.cache_resource
 def loadAgent(checkGemini = True):
@@ -82,30 +75,14 @@ def buildAgentHistory(messages):
 
 	return list(reversed(boundedHistory))
 
-def scrollToBottom():
-	componentKey = time.time_ns()
-
-	jsCode = f"""
-	<script>
-		const componentKey = "{componentKey}";
-
-		const scrollToBottom = () => {{if (window.frameElement) {{window.frameElement.scrollIntoView({{behavior: "smooth", block: "end"}});}}}};
-
-		window.requestAnimationFrame(() => {{window.setTimeout(scrollToBottom, 150);}});
-	</script>
-	"""
-
-	components.html(jsCode, height=0)
-
-hotkeys.on_pressed("scroll_bottom", scrollToBottom)
-
-if st.button("Scroll to latest message"):
-	scrollToBottom()
-
-
-def showRoofImages(images):
-	for buildingId, imagePath in images:
-		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
+def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
+	filters = f"city={city}, propertyType={propertyType}, minimum gross area={minGrossArea} sq ft, limit={limit}"
+	if mode == "Search":
+		randomInstruction = "randomize=true" if randomize else "randomize=false"
+		return f"Use searchBuildings with {filters}, {randomInstruction}. Report returned facts and warnings. Do not rank these results."
+	if mode == "Rank":
+		return f"Use rankBuildings once with {filters}. Rank matching buildings by returned simple payback. Do not randomize or call computeFinancials one building at a time. Report exclusions and assumptions concisely."
+	raise ValueError("Mode must be Search or Rank.")
 
 
 @st.cache_data(ttl = 300, show_spinner = False)
@@ -122,88 +99,191 @@ def lookupBuilding(buildingId):
 		return None
 
 
-def showAssistantExtras(message, key):
-	"""Tool trace, ranked map/table, detail panel for the selected row, then any other roof images."""
-	if message.get("trace"):
-		showTrace(message["trace"])
-	images = message.get("images", [])
-	ranking = message.get("ranking")
+def friendlyError(error):
+	text = str(error)
+	if "429" in text or "RESOURCE_EXHAUSTED" in text:
+		return "Gemini's free quota is used up and the local backup model did not answer. Try again after the quota resets."
+	if "ollama" in text.lower() or "Connection refused" in text or "ConnectError" in type(error).__name__:
+		return "The local backup model (Ollama) is not running on this machine, so the agent could not answer."
+	return f"The agent could not finish this request: {text[:240]}"
+
+
+def saveRun(run):
+	try:
+		lastRunPath.parent.mkdir(parents = True, exist_ok = True)
+		lastRunPath.write_text(json.dumps(run, default = str))
+	except OSError:
+		pass  # the fallback copy is optional
+
+
+def loadSavedRun():
+	try:
+		return json.loads(lastRunPath.read_text())
+	except (OSError, ValueError):
+		return None
+
+
+def runAgent(agent, requestText, history):
+	"""Invoke the agent on a worker thread and draw its tool calls live; returns the run to keep in session state."""
+	live, outcome = LiveTrace(), {}
+
+	def work():
+		try:
+			outcome["result"] = agent.invoke({"messages": history}, config = {"callbacks": [live]})
+		except Exception as error:  # re-raised on the Streamlit thread below
+			outcome["error"] = error
+
+	worker = threading.Thread(target = work, daemon = True)
+	worker.start()
+	with st.status("Planning the analysis…", expanded = True) as status:
+		steps = st.empty()
+		while worker.is_alive():
+			label = live.drain()
+			if label:
+				status.update(label = label)
+			steps.markdown(live.markdown() or "_Reading the request and planning tool calls…_")
+			worker.join(0.2)
+		live.drain()
+		if "error" in outcome:
+			status.update(label = "The agent hit a problem", state = "error", expanded = False)
+			raise outcome["error"]
+		status.update(label = "Analysis complete", state = "complete", expanded = False)
+
+	messages = outcome["result"]["messages"]
+	ranking = rankingResult(messages)
 	if ranking:
-		rows = ranking["ranked"]
-		row = rows[selectedIndex(showRanking(ranking, key = key), len(rows))]
-		imagePath, imageError = dict(images).get(row["buildingId"]), None
-		if not imagePath:
-			imageResult = roofImageFor(row["buildingId"])
-			imagePath, imageError = imageResult.get("imagePath"), imageResult.get("error")
-		showDetail(row, imagePath, imageError, lookupBuilding(row["buildingId"]))
-		rankedIds = {ranked["buildingId"] for ranked in rows}
-		images = [image for image in images if image[0] not in rankedIds]  # already shown in the detail panel
-	showRoofImages(images)
-
-def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
-	filters = f"city={city}, propertyType={propertyType}, minimum gross area={minGrossArea} sq ft, limit={limit}"
-	if mode == "Search":
-		randomInstruction = "randomize=true" if randomize else "randomize=false"
-		return f"Use searchBuildings with {filters}, {randomInstruction}. Report returned facts and warnings. Do not rank these results."
-	if mode == "Rank":
-		return f"Use rankBuildings once with {filters}. Rank matching buildings by returned simple payback. Do not randomize or call computeFinancials one building at a time. Report exclusions and assumptions concisely."
-	raise ValueError("Mode must be Search or Rank.")
+		with st.spinner("Placing buildings on the map…"):
+			ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
+	return {"query": requestText, "response": extractText(messages[-1].content), "ranking": ranking,
+		"images": [list(image) for image in roofImages(messages)], "trace": toolTrace(messages),
+		"model": modelLabel(agent), "savedAt": datetime.now().strftime("%b %d, %H:%M")}
 
 
-def runAgentRequest(agent, requestText):
-	st.session_state.chatMessages.append({"role": "user", "content": requestText})
-	with st.chat_message("user"):
-		st.markdown(requestText)
+def executeRequest(agent, agentError, requestText):
+	"""Run one request; on failure keep the current results, or fall back to the last saved run. True on success."""
+	history = buildAgentHistory(st.session_state.chatMessages + [{"role": "user", "content": requestText}])
+	try:
+		if agent is None:
+			raise RuntimeError(agentError or "The agent could not be started.")
+		run = runAgent(agent, requestText, history)
+	except Exception as error:
+		message = friendlyError(error)
+		saved = loadSavedRun()
+		if st.session_state.run is None and saved:
+			st.session_state.run = saved | {"fromCache": True}
+			message += f" Showing the last saved analysis ({saved.get('savedAt', 'earlier')})."
+		elif st.session_state.run is not None:
+			message += " Your previous results are still shown below."
+		st.session_state.notice = message
+		return False
+	st.session_state.chatMessages += [{"role": "user", "content": requestText}, {"role": "assistant", "content": run["response"]}]
+	st.session_state.run, st.session_state.notice, st.session_state.lastMapPick = run, None, None
+	st.session_state.selectedId = str(run["ranking"]["ranked"][0]["buildingId"]) if run["ranking"] else None
+	saveRun(run)
+	return True
 
-	with st.chat_message("assistant"):
-		with st.spinner("Analyzing properties..."):
-			try:
-				history = buildAgentHistory(st.session_state.chatMessages)
-				result = agent.invoke({"messages": history})
-				responseText = extractText(result["messages"][-1].content)
-				images = roofImages(result["messages"])
-				ranking = rankingResult(result["messages"])
-				trace = toolTrace(result["messages"])
-				if ranking:
-					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
-				model = modelLabel(agent)  # read after invoke: a quota error during this request switches to Ollama
-				st.markdown(responseText)
-				st.caption(model)
-				showAssistantExtras({"images": images, "ranking": ranking, "trace": trace}, key = f"ranking-current-{len(st.session_state.chatMessages)}")
-				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking, "trace": trace, "model": model})
-			except Exception as error:
-				errorMessage = str(error)
-				if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
-					st.error("Gemini quota is currently exhausted. Wait for the quota window to reset, then try again.")
-				else:
-					st.error(f"RoofWatt could not complete the request: {errorMessage}")
 
-	scrollToBottom()
+def showRanking(run, ranking):
+	base = ranking["ranked"]
+	assumptions = st.session_state.assumptions
+	rows = recalculate(base, assumptions) if assumptions else base
+	if assumptions:
+		st.warning("What-if assumptions from the sidebar are active: the numbers below are recalculated for these "
+			f"{len(rows)} buildings (re-run the agent to re-rank every building).", icon = ":material/tune:")
+	kpiRow(ranking, rows)
+
+	ids = [str(row["buildingId"]) for row in rows]
+	if st.session_state.selectedId not in ids:
+		st.session_state.selectedId = ids[0]
+	mapColumn, listColumn = st.columns([11, 9], gap = "large")
+	with mapColumn, st.container(key = "panel-map"):
+		st.markdown("#### :material/map: Where the best roofs are")
+		deck = rankingDeck(rows, st.session_state.selectedId)
+		if deck is None:
+			st.info("No coordinates for these buildings, so the map is empty.", icon = ":material/location_off:")
+		else:
+			event = st.pydeck_chart(deck, height = MAP_HEIGHT_PX, on_select = "rerun", selection_mode = "single-object", key = "map")
+			picked = selectedFromMap(event)
+			if picked and picked != st.session_state.lastMapPick:  # a new click on the map, not a stale selection
+				st.session_state.selectedId = st.session_state.lastMapPick = picked
+				st.rerun()
+		st.caption(f"{summaryText(ranking)} Orange = best payback; dot size = system size. Click a dot or a card.")
+		with st.expander("Table view", icon = ":material/table:"):
+			st.dataframe(rankingTable(rows), hide_index = True, width = "stretch")
+	with listColumn, st.container(key = "panel-list"):
+		st.markdown(f"#### :material/leaderboard: Top {len(rows)} by payback")
+		rankedCards(rows, ranking.get("propertyType", ""), st.session_state.selectedId, height = MAP_HEIGHT_PX + 40)
+
+	row = next(row for row in rows if str(row["buildingId"]) == st.session_state.selectedId)
+	baseline = next((b for b in base if str(b["buildingId"]) == st.session_state.selectedId), None) if assumptions else None
+	imagePath, imageError = dict(st.session_state.run.get("images") or []).get(str(row["buildingId"])), None
+	if not imagePath:
+		with st.spinner("Fetching the aerial roof image…"):
+			imageResult = roofImageFor(str(row["buildingId"]))
+		imagePath, imageError = imageResult.get("imagePath"), imageResult.get("error")
+	showDetail(row, imagePath, imageError, lookupBuilding(str(row["buildingId"])), baseline = baseline,
+		assumptions = assumptions, propertyType = ranking.get("propertyType"))
+
+
+def showResults(run):
+	if run.get("fromCache"):
+		st.info(f"Saved analysis from {run.get('savedAt', 'an earlier run')} (offline fallback).", icon = ":material/history:")
+	showTrace(run.get("trace") or [], run.get("model"))
+	if run.get("ranking"):
+		showRanking(run, run["ranking"])
+	summary, proposal = splitProposal(run.get("response", ""))
+	if proposal:
+		proposalPanel(proposal, "Owner proposal", "roofwatt-proposal", run.get("model"))
+		if summary:
+			with st.expander("Agent's full answer", icon = ":material/chat:"):
+				st.markdown(summary)
+	else:
+		with st.container(key = "panel-answer"):
+			st.markdown("<div class='rw-eyebrow'>Agent answer</div>", unsafe_allow_html = True)
+			st.markdown(run.get("response") or "_The agent returned no text._")
+			if run.get("model"):
+				st.caption(run["model"])
+
 
 if __name__ == "__main__":
-	agent = loadAgent()
+	for name, default in {"run": None, "chatMessages": [], "selectedId": None, "assumptions": None, "notice": None,
+			"lastMapPick": None}.items():
+		st.session_state.setdefault(name, default)
 
-	if "chatMessages" not in st.session_state:
-		st.session_state.chatMessages = []
+	try:
+		agent, agentError = loadAgent(), None
+	except Exception as error:
+		agent, agentError = None, friendlyError(error)
 
-	if st.sidebar.button("Clear conversation"):
-		st.session_state.chatMessages = []
+	with st.sidebar:
+		assumptionsSidebar()
+		st.divider()
+		searchSubmitted, filters = propertySearchSidebar()
+		if st.button("Clear results", icon = ":material/delete_sweep:", width = "stretch"):
+			for name in ("run", "selectedId", "notice", "lastMapPick"):
+				st.session_state[name] = None
+			st.session_state.chatMessages = []
+			st.rerun()
+		modelStatus = st.empty()  # filled last, so it reflects a switch to Ollama during this run
+
+	ranking = (st.session_state.run or {}).get("ranking") or {}
+	header({"Houston": "Houston, TX", "Los Angeles": "Los Angeles, CA"}.get(ranking.get("city"), "Houston, TX"))
+	query, runClicked = queryBar()
+
+	request = None
+	if searchSubmitted:
+		request = buildSearchPrompt(filters["city"], filters["propertyType"], filters["minGrossArea"], filters["limit"],
+			filters["randomize"], filters["mode"])
+	elif runClicked and query:
+		request = query
+	if request and executeRequest(agent, agentError, request):
 		st.rerun()
-	modelStatus = st.sidebar.empty()  # filled last, so it reflects a switch to Ollama during this run
 
-	for index, message in enumerate(st.session_state.chatMessages):
-		with st.chat_message(message["role"]):
-			st.markdown(message["content"])
-			if message.get("model"):
-				st.caption(message["model"])
-			if message["role"] == "assistant":
-				showAssistantExtras(message, key = f"ranking-{index}")
+	if st.session_state.notice:
+		st.error(st.session_state.notice, icon = ":material/error:")
+	if st.session_state.run is None:
+		emptyState()
+	else:
+		showResults(st.session_state.run)
 
-	userPrompt = st.chat_input("Ask RoofWatt to find commercial properties")
-
-	if runSearch:
-		runAgentRequest(agent, buildSearchPrompt(city, propertyType, minGrossArea, int(limit), randomize, mode))
-	elif userPrompt:
-		runAgentRequest(agent, userPrompt)
-
-	modelStatus.caption(modelLabel(agent))
+	modelStatus.caption(modelLabel(agent) if agent is not None else f"Model: unavailable · {agentError}")

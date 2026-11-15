@@ -5,11 +5,13 @@ import math
 import pandas as pd
 import pydeck as pdk
 
-TOP_COLOR = [34, 197, 94]  # design-system accent #22C55E: rank 1
-OTHER_COLOR = [148, 163, 184]  # design-system muted foreground #94A3B8
-LABEL_COLOR = [15, 23, 42]  # design-system "on accent" #0F172A
-MAP_HEIGHT_PX = 420
-MAP_MIN_WIDTH_PX = 700  # narrowest chat column we expect; the view is fitted to this so wider screens only add margin
+TOP_COLOR = [255, 159, 28]  # brand solar orange #FF9F1C: rank 1 (best payback)
+OTHER_COLOR = [47, 128, 237]  # brand panel blue #2F80ED: the other ranked buildings
+NAVY = [19, 41, 75]  # brand navy #13294B: outlines, label on orange (7.1:1)
+WHITE = [255, 255, 255]
+LAYER_ID = "buildings"
+MAP_HEIGHT_PX = 560
+MAP_MIN_WIDTH_PX = 620  # narrowest map column we expect (60% of a laptop screen); wider screens only add margin
 MAX_ZOOM = 13
 WORLD_PX = 512  # deck.gl Web Mercator: the whole world is 512 px wide at zoom 0
 
@@ -60,30 +62,45 @@ def fitView(positions: list[list[float]], *, width_px: float, height_px: float, 
 	return pdk.ViewState(latitude = lat, longitude = lon, zoom = round(min(zooms), 2))
 
 
-def rankingDeck(rows: list[dict]) -> pdk.Deck | None:
-	"""Map of the ranked buildings (rank 1 highlighted), or None when no row has coordinates."""
+def rankingDeck(rows: list[dict], selectedId: str | None = None) -> pdk.Deck | None:
+	"""Light map of the ranked buildings: size ~ system kW, rank 1 orange, others blue, selected one ringed in navy."""
+	located = [row for row in rows if row.get("lat") is not None and row.get("lon") is not None]
+	if not located:
+		return None
+	maxKw = max(row["systemKw"] for row in located) or 1
 	points = [{
 		"buildingId": str(row["buildingId"]),
 		"position": [row["lon"], row["lat"]],
 		"label": str(row["rank"]),
 		"name": _name(row),
 		"color": TOP_COLOR if row["rank"] == 1 else OTHER_COLOR,
+		"labelColor": NAVY if row["rank"] == 1 else WHITE,
+		"radius": round(11 + 13 * math.sqrt(max(row["systemKw"], 0) / maxKw), 1),  # area grows with kW
+		"lineWidth": 4 if str(row["buildingId"]) == str(selectedId) else 1.5,
+		"lineColor": NAVY if str(row["buildingId"]) == str(selectedId) else WHITE,
 		"paybackLabel": f"{row['simplePaybackYr']:.2f} yr",
 		"savingsLabel": f"${row['annualSavingsUsd']:,.0f}/yr",
 		"co2Label": f"{row['co2TonsPerYear']:,.0f} t CO₂/yr",
 		"systemLabel": f"{row['systemKw']:,.0f} kW",
-	} for row in rows if row.get("lat") is not None and row.get("lon") is not None]
-	if not points:
-		return None
-	points.sort(key = lambda point: point["color"] == TOP_COLOR) 
-	view = fitView([point["position"] for point in points], width_px = MAP_MIN_WIDTH_PX, height_px = MAP_HEIGHT_PX)
-	dots = pdk.Layer("ScatterplotLayer", points, get_position = "position", get_fill_color = "color", get_radius = 14,
-		radius_units = "'pixels'", stroked = True, get_line_color = [15, 23, 42], line_width_min_pixels = 2, pickable = True)
-	labels = pdk.Layer("TextLayer", points, get_position = "position", get_text = "label", get_color = LABEL_COLOR,
-		get_size = 14, get_text_anchor =  "'middle'", get_alignment_baseline = "'center'", font_weight = 700)
-	tooltip = {"html": "<b>#{label} {name}</b><br/>Payback {paybackLabel}<br/>{savingsLabel} · {systemLabel}<br/>{co2Label}",
-		"style": {"backgroundColor": "#1B2336", "color": "#F8FAFC", "fontSize": "13px"}}
-	return pdk.Deck(layers=[dots, labels], initial_view_state = view, map_provider = "carto", map_style="dark", tooltip = tooltip)
+	} for row in located]
+	points.sort(key=lambda point: (point["color"] == TOP_COLOR, point["lineColor"] == NAVY))  # rank 1 and selection on top
+	view = fitView([point["position"] for point in points], width_px=MAP_MIN_WIDTH_PX, height_px=MAP_HEIGHT_PX)
+	dots = pdk.Layer("ScatterplotLayer", points, id=LAYER_ID, get_position="position", get_fill_color="color",
+		get_radius="radius", radius_units="'pixels'", stroked=True, get_line_color="lineColor",
+		get_line_width="lineWidth", line_width_units="'pixels'", pickable=True, opacity=0.95)
+	labels = pdk.Layer("TextLayer", points, get_position="position", get_text="label", get_color="labelColor",
+		get_size=15, get_text_anchor="'middle'", get_alignment_baseline="'center'", font_weight=700)
+	tooltip = {"html": "<b>#{label} · {name}</b><br/>Payback <b>{paybackLabel}</b><br/>Savings {savingsLabel}"
+		"<br/>{systemLabel} · {co2Label}",
+		"style": {"backgroundColor": "#FFFFFF", "color": "#13294B", "fontSize": "15px", "borderRadius": "10px",
+			"boxShadow": "0 4px 14px rgba(19,41,75,0.18)", "padding": "10px 12px"}}
+	return pdk.Deck(layers=[dots, labels], initial_view_state=view, map_provider="carto", map_style="light", tooltip=tooltip)
+
+
+def selectedFromMap(selection) -> str | None:
+	"""buildingId of the map point the user clicked, if any (st.pydeck_chart selection state)."""
+	objects = (((selection or {}).get("selection") or {}).get("objects") or {}).get(LAYER_ID) or []
+	return str(objects[0]["buildingId"]) if objects and objects[0].get("buildingId") else None
 
 
 def summaryText(result: dict) -> str:
@@ -100,25 +117,3 @@ def summaryText(result: dict) -> str:
 	if "usableFactor" in assumptions:
 		text += f"; usable roof factor {assumptions['usableFactor']} is an unsourced assumption"
 	return text + "."
-
-
-def showRanking(result: dict, *, key: str):
-	"""Caption, map and a single-row-selectable table; returns the table's selection state."""
-	import streamlit as st
-
-	st.caption(summaryText(result))
-	deck = rankingDeck(result["ranked"])
-	if deck is not None:
-		st.pydeck_chart(deck, height=MAP_HEIGHT_PX)
-	number = st.column_config.NumberColumn
-	st.caption("Select a row to see that building's roof and numbers below.")
-	return st.dataframe(rankingTable(result["ranked"]), hide_index=True, width="stretch", key=key,
-		on_select="rerun", selection_mode="single-row", column_config={
-		"Rank": number(width="small"),
-		"System (kW)": number(format="localized"),
-		"Energy (MWh/yr)": number(format="localized"),
-		"Savings ($/yr)": number(format="localized"),
-		"Net cost after ITC ($)": number(format="localized"),
-		"Payback (yr)": number(format="%.2f"),
-		"CO₂ avoided (t/yr)": number(format="localized"),
-	})

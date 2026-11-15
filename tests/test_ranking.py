@@ -45,7 +45,7 @@ def test_deck_plots_only_rows_with_coordinates_and_highlights_rank_one():
 	spec = json.loads(rankingDeck(rows).to_json())
 	points = spec["layers"][0]["data"]
 	assert [point["buildingId"] for point in points] == ["240117"]
-	assert points[0]["color"] == [34, 197, 94]
+	assert points[0]["color"] == [255, 159, 28]  # brand orange for rank 1
 	assert points[0]["paybackLabel"] == "10.93 yr"
 	assert spec["initialViewState"]["latitude"] == pytest.approx(29.71)
 
