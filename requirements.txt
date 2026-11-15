@@ -5,12 +5,10 @@ langchain
 langchain-google-genai
 langchain-ollama
 streamlit
-streamlit_hotkeys
 pydeck
 requests
 python-dotenv
 pandas
-pillow
 pytest
 pydantic
 socksio

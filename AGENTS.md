@@ -117,7 +117,7 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 3
   marginal; `COST_PER_WATT_BY_SIZE_KW` uses national medians. The letter omits the ITC caveat.
 - Letter split (`ui/proposal.py`) not yet seen on a live Gemini reply.
 - Map tiles (CARTO) and the Inter font need internet.
-- Unused dependencies: `streamlit-hotkeys` (requirements + pyproject), `pillow` (requirements).
+- Unused dependency: `streamlit-hotkeys` is still in `pyproject.toml` / `uv.lock` (removed from requirements.txt).
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
 
 ## Immediate Next Steps
