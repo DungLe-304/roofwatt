@@ -12,3 +12,7 @@ venv/
 cache/
 *.sqlite
 .DS_Store
+
+# Streamlit agent skills (environment-specific symlinks into .venv)
+.agents/skills/developing-with-streamlit
+.claude/skills/developing-with-streamlit
