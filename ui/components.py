@@ -57,7 +57,7 @@ def aiEngine(localModels: list[str], localProblem: str | None, geminiReady: bool
 
 
 def _status(engine: str, active: bool, help: str) -> None:
-	st.markdown(f"{engine}: {':green[Active]' if active else ':red[Offline]'}", help=help)
+	st.markdown(f"{engine}: {':green[ACTIVE]' if active else ':red[OFFLINE]'}", help=help)
 
 
 def sidebar(pages: dict, city: str, engine=None):

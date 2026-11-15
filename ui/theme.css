@@ -1,0 +1,45 @@
+/* Keep the existing layout; supplement Streamlit's native Latte theme. */
+:root {
+  --latte-base: #eff1f5;
+  --latte-mantle: #e6e9ef;
+  --latte-text: #4c4f69;
+  --latte-subtext: #5c5f77;
+  --latte-mauve: #8839ef;
+}
+
+/* Native theme radii do not cover chat, portal menus and map controls. */
+:is(div, section, article, aside, header, footer, button, input, textarea,
+    select, fieldset, pre, code, img, iframe, canvas, table, details, summary),
+[role="dialog"], [role="listbox"], [role="option"], [role="tooltip"],
+::before, ::after {
+  border-radius: 0 !important;
+}
+
+[data-testid="stCaptionContainer"],
+[data-testid="stMetricLabel"],
+input::placeholder, textarea::placeholder {
+  color: var(--latte-subtext);
+  opacity: 1;
+}
+
+[data-testid="stChatMessage"] {
+  background-color: var(--latte-mantle);
+}
+
+button:focus-visible, summary:focus-visible, a:focus-visible {
+  outline: 2px solid var(--latte-mauve);
+  outline-offset: 2px;
+}
+
+button[kind="primary"] {
+  color: var(--latte-base);
+}
+
+/* Text icons retain Streamlit's icon font; normal text uses the theme font. */
+.deckgl-tooltip {
+  font-family: "CaskaydiaCove Nerd Font Mono", monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
