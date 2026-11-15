@@ -123,7 +123,7 @@ class Building:
     lon: float
     property_type: str
     building_sqft: Optional[float]
-    footprint_m2: Optional[float]   # if CoStar lacks it: building_sqft / stories, converted to m²
+    footprint_m2: Optional[float]   # if CoStar lacks it: min(typical floor sqft, building_sqft / stories), converted to m²
     stories: Optional[int]
     year_built: Optional[int]
     owner_name: Optional[str]

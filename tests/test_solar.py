@@ -29,11 +29,15 @@ def calls(monkeypatch, tmp_path):
     monkeypatch.setattr(solar, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(solar.time, "sleep", lambda s: None)
     monkeypatch.setenv("NLR_API_KEY", "test-key")
-    state = {"responses": [], "params": []}
+    state = {"responses": [], "params": [], "headers": []}
 
-    def fake_get(url, params, timeout):
+    def fake_get(url, params, headers, timeout):
         state["params"].append(params)
-        return state["responses"].pop(0)
+        state["headers"].append(headers)
+        response = state["responses"].pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     monkeypatch.setattr(solar.requests, "get", fake_get)
     return state
@@ -46,7 +50,8 @@ def test_returns_annual_kwh_and_sends_roof_mount_params(calls):
     p = calls["params"][0]
     assert p["array_type"] == 1 and p["azimuth"] == 180 and p["tilt"] == 10
     assert p["system_capacity"] == 100 and p["losses"] == 14
-    assert (p["lat"], p["lon"], p["api_key"]) == (29.76, -95.37, "test-key")
+    assert (p["lat"], p["lon"]) == (29.76, -95.37) and "api_key" not in p
+    assert calls["headers"][0] == {"X-Api-Key": "test-key"}
 
 
 def test_second_identical_call_is_served_from_cache(calls):
@@ -87,3 +92,11 @@ def test_missing_api_key_raises_clear_error(calls, monkeypatch):
     monkeypatch.delenv("NLR_API_KEY")
     with pytest.raises(RuntimeError, match="NLR_API_KEY"):
         solar.estimate_solar("b1", 29.76, -95.37, 100, tilt_deg=10)
+
+
+def test_errors_never_contain_the_api_key(calls):
+    url = "https://developer.nlr.gov/api/pvwatts/v8.json?system_capacity=100&api_key=test-key"
+    calls["responses"] = [solar.requests.ConnectionError(f"Max retries exceeded with url: {url}")]
+    with pytest.raises(solar.requests.ConnectionError) as error:
+        solar.estimate_solar("b1", 29.76, -95.37, 100, tilt_deg=10)
+    assert "test-key" not in str(error.value) and "api_key=***" in str(error.value)

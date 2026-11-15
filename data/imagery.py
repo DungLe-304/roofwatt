@@ -41,13 +41,17 @@ def get_roof_image(building_id: str, lat: float, lon: float, *, extent_m: float 
 		"image-format": "jpeg",
 		"api_key": apiKey,
 	}
-	response = requests.get(VEXCEL_EXTRACT_URL, params=params, timeout=60)
+	try:
+		response = requests.get(VEXCEL_EXTRACT_URL, params=params, timeout=60)
+	except requests.RequestException as error:  # the message holds the URL, and Vexcel only takes the key there
+		raise type(error)(str(error).replace(apiKey, "***")) from None
 	contentType = response.headers.get("content-type", "")
 	if response.status_code == 401:
 		raise RuntimeError("Vexcel rejected VEXCEL_API_KEY (HTTP 401)")
 	if response.status_code == 204:
 		raise RuntimeError(f"Vexcel has no imagery for {building_id} in layer '{VEXCEL_LAYER}' (HTTP 204)")
 	if response.status_code != 200 or not contentType.startswith("image/"):
-		raise RuntimeError(f"Vexcel returned HTTP {response.status_code} ({contentType}): {response.text[:200]}")
+		raise RuntimeError(f"Vexcel returned HTTP {response.status_code} ({contentType}): "
+			f"{response.text[:200].replace(apiKey, '***')}")
 	suffix = "." + contentType.split("/", 1)[1].split(";")[0].strip()
 	return cache.write_bytes(CACHE_NAMESPACE, key, suffix, response.content)

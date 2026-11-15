@@ -4,7 +4,7 @@ import config
 from models.roof import M2_PER_FT2
 
 S = config.SOURCES
-ROOF_METHOD = "Tier 1 · footprint (gross area ÷ stories) × usable factor"
+ROOF_METHOD = "Tier 1 · footprint (smaller of typical floor and gross area ÷ stories) × usable factor"
 
 
 def _whatIf(value: str, default: str, changed: bool) -> str:
@@ -39,8 +39,8 @@ def detailFacts(row: dict, building=None, assumptions: dict | None = None) -> li
 			f"the median for this system size: {S['COST_PER_WATT_BY_SIZE_KW']})." if flatPrice else
 			f"(median price for this system size). Source: {S['COST_PER_WATT_BY_SIZE_KW']}.")),
 		("Usable roof", f"{row['usableRoofM2']:,.0f} m²",
-			f"{ROOF_METHOD}: gross area ÷ stories × {M2_PER_FT2} m²/ft² × {usable}. "
-			f"Usable factor: {S['USABLE_FACTOR']}. Gross area and stories: {S['BUILDING']}."
+			f"{ROOF_METHOD}: min(typical floor, gross area ÷ stories) × {M2_PER_FT2} m²/ft² × {usable}. "
+			f"Usable factor: {S['USABLE_FACTOR']}. Typical floor, gross area and stories: {S['BUILDING']}."
 			f"{_whatIf(str(usable), str(config.USABLE_FACTOR), usable != config.USABLE_FACTOR)}"),
 	]
 	if building is not None:
@@ -52,40 +52,47 @@ def detailFacts(row: dict, building=None, assumptions: dict | None = None) -> li
 	return [{"label": label, "value": value, "help": help} for label, value, help in facts]
 
 
-DELTA_FIELDS = {"Payback": ("simplePaybackYr", "{:+.2f} yr", "inverse"), "Annual savings": ("annualSavingsUsd", "{:+,.0f} $/yr", "normal"),
-	"Net cost after ITC": ("netCapexUsd", "{:+,.0f} $", "inverse"), "System size": ("systemKw", "{:+,.0f} kW", "normal"),
-	"Energy · kWh/yr": ("annualKwh", "{:+,.0f}", "normal"), "CO₂ avoided": ("co2TonsPerYear", "{:+,.0f} t/yr", "normal"),
-	"Installed cost": ("capexUsd", "{:+,.0f} $", "inverse"), "Usable roof": ("usableRoofM2", "{:+,.0f} m²", "normal")}
+# Display order follows the calculation chain, roof to payback.
+ORDER = ["Usable roof", "System size", "Energy · kWh/yr", "Annual savings", "Installed cost", "Net cost after ITC",
+	"Payback", "CO₂ avoided"]
+DELTA_FIELDS = {"Payback": ("simplePaybackYr", "{:+.2f} yr"), "Annual savings": ("annualSavingsUsd", "{:+,.0f} $/yr"),
+	"Net cost after ITC": ("netCapexUsd", "{:+,.0f} $"), "System size": ("systemKw", "{:+,.0f} kW"),
+	"Energy · kWh/yr": ("annualKwh", "{:+,.0f}"), "CO₂ avoided": ("co2TonsPerYear", "{:+,.0f} t/yr"),
+	"Installed cost": ("capexUsd", "{:+,.0f} $"), "Usable roof": ("usableRoofM2", "{:+,.0f} m²")}
+
+
+def whatIfChange(label: str, row: dict, baseline: dict | None) -> str | None:
+	"""Signed change of one metric against the sourced-default row, or None when there is none to show."""
+	if baseline is None or label not in DELTA_FIELDS:
+		return None
+	field, pattern = DELTA_FIELDS[label]
+	change = row[field] - baseline[field]
+	return pattern.format(change) if abs(change) >= 0.005 else None
 
 
 def showDetail(row: dict, imagePath: str | None, imageError: str | None, building=None, *,
 		baseline: dict | None = None, assumptions: dict | None = None, propertyType: str | None = None) -> None:
-	"""Roof image beside the key numbers. With a what-if `baseline` row, each metric shows its change."""
+	"""Aerial roof image beside a key-value list; every row's tooltip gives the formula and its source."""
 	import streamlit as st
 
-	name = row.get("address") or f"Building {row['buildingId']}"
-	facts = detailFacts(row, building, assumptions)
-	with st.container(key="panel-detail"):
-		st.markdown(f"<div class='rw-eyebrow'>Selected building</div><h3 class='rw-h3'>#{row['rank']} · {name}</h3>",
-			unsafe_allow_html=True)
-		details = [propertyType, f"CoStar ID {row['buildingId']}"] + [f["value"] for f in facts if f["label"] == "Building"]
-		st.markdown(f"<div class='rw-muted'>{' · '.join(part for part in details if part)}</div>", unsafe_allow_html=True)
-		imageColumn, numbersColumn = st.columns([5, 7], gap="large")
-		with imageColumn:
-			if imagePath:
-				st.image(imagePath, caption="Aerial roof image · Vexcel Imaging", width="stretch")
-			else:
-				st.info(f"Aerial image unavailable: {imageError or 'not available'}", icon=":material/hide_image:")
-			st.markdown(f"<span class='rw-chip'>Roof method: {ROOF_METHOD} {(assumptions or {}).get('usableFactor', config.USABLE_FACTOR)}"
-				f"</span>", unsafe_allow_html=True, help=f"Usable factor: {S['USABLE_FACTOR']}. CoStar has no roof footprint, "
-				"so footprint = gross building area ÷ stories.")
-		with numbersColumn:
-			metrics = [fact for fact in facts if fact["label"] != "Building"]
-			for start in range(0, len(metrics), 2):
-				for column, fact in zip(st.columns(2), metrics[start:start + 2]):
-					delta, color = None, "normal"
-					if baseline is not None and fact["label"] in DELTA_FIELDS:
-						field, pattern, color = DELTA_FIELDS[fact["label"]]
-						change = row[field] - baseline[field]
-						delta = pattern.format(change) if abs(change) >= 0.005 else None
-					column.metric(fact["label"], fact["value"], delta=delta, delta_color=color, help=fact["help"], border=True)
+	facts = {fact["label"]: fact for fact in detailFacts(row, building, assumptions)}
+	details = [propertyType, f"CoStar ID {row['buildingId']}"] + ([facts["Building"]["value"]] if "Building" in facts else [])
+	st.markdown(f"<p class='rw-lede'>{' · '.join(part for part in details if part)}</p>", unsafe_allow_html=True)
+	imageColumn, listColumn = st.columns([5, 7], gap="large")
+	with imageColumn:
+		if imagePath:
+			st.image(imagePath, caption="Aerial roof image · Vexcel Imaging", width="stretch")
+		else:
+			st.info(f"Aerial image unavailable: {imageError or 'not available'}")
+		usable = (assumptions or {}).get("usableFactor", config.USABLE_FACTOR)
+		st.caption(f"Roof method: {ROOF_METHOD} {usable}", help=f"Usable factor: {S['USABLE_FACTOR']}. CoStar has no roof "
+			"footprint, so footprint = the smaller of the typical floor area and gross building area ÷ stories.")
+	with listColumn:
+		for index, label in enumerate(ORDER):
+			fact = facts[label]
+			with st.container(key=f"kv-{index}"):
+				name, value = st.columns([3, 2], vertical_alignment="center")
+				name.markdown(label, help=fact["help"])
+				change = whatIfChange(label, row, baseline)
+				note = f"<span class='rw-kv-delta'>{change} vs sourced defaults</span>" if change else ""
+				value.markdown(f"<div class='rw-kv-value'>{fact['value']}{note}</div>", unsafe_allow_html=True)

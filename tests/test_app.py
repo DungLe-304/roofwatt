@@ -1,4 +1,4 @@
-"""Streamlit app with fake agents (no LLM call): empty state, live run, cards, detail, proposal, what-if, fallback."""
+"""Streamlit app with fake agents (no LLM, no network): the five pages, run flow, what-if, fallback, model label."""
 
 import json
 
@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from streamlit.testing.v1 import AppTest
 
 import agent.agent
+import data.buildings
 
 ROW_1 = {"rank": 1, "address": "5959 Corporate Dr", "buildingId": "240117", "usableRoofM2": 7906.04,
 	"systemKw": 1167.72, "annualKwh": 1660572.5, "annualSavingsUsd": 142145.01, "costPerWattUsd": 1.9,
@@ -23,9 +24,11 @@ REPLY = "Top 2 offices ranked by payback.\n\n## Pitch for 5959 Corporate Dr\nDea
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
-	"""Fresh cached agent per test; the last-run fallback file goes to tmp_path, not the demo cache."""
+	"""Fresh caches per test; no Overpass call; the last-run fallback file goes to tmp_path, not the demo cache."""
 	st.cache_resource.clear()
+	st.cache_data.clear()
 	monkeypatch.setenv("ROOFWATT_LAST_RUN", str(tmp_path / "last_run.json"))
+	monkeypatch.setattr(data.buildings, "loadBuildingGeometry", lambda positions: {"buildings": [], "warning": ""})
 
 
 def roof_png(tmp_path):
@@ -61,58 +64,84 @@ def start(monkeypatch, fake):
 	return AppTest.from_file("../app.py", default_timeout=30).run()
 
 
+def goto(at, url_path):
+	"""Open a st.navigation page by url_path. AppTest.switch_page only takes script files, and these pages are
+	functions, so this sets the page hash AppTest itself keeps for registered pages."""
+	target = "" if url_path == "analyze" else url_path  # the default page is registered with an empty path
+	at._page_hash = next(page_hash for page_hash, info in at._registered_pages.items() if info.get("url_pathname") == target)
+	return at.run()
+
+
 def button(at, label):
 	return next(b for b in at.button if b.label == label)
 
 
-def metrics(at):
-	return {m.label: m.value for m in at.metric}
+def title(at):
+	return at.title[0].value
 
 
-def test_empty_state_explains_the_three_steps_and_prefills_the_demo_query(monkeypatch):
+def text(at):
+	return "\n".join(m.value for m in at.markdown)
+
+
+def values(at):
+	"""The value cells of the Building page's key-value list, in display order."""
+	return [m.value for m in at.markdown if m.value.startswith("<div class='rw-kv-value'>")]
+
+
+def test_starts_on_analyze_with_the_demo_query_and_five_nav_links(monkeypatch):
 	at = start(monkeypatch, FakeAgent())
-	assert not at.exception
+	assert not at.exception and title(at) == "Analyze"
 	assert at.text_area(key="query").value.startswith("Find the 10 office buildings in Houston")
-	assert [m.value for m in at.markdown if m.value.startswith("#### ")] == [
-		"#### :material/travel_explore: 1 · Scan", "#### :material/solar_power: 2 · Analyze", "#### :material/edit_note: 3 · Pitch"]
-	assert not at.metric
+	assert len(at.sidebar.get("page_link")) == 5
+	assert "Houston, TX" in [m.value for m in at.sidebar.markdown]
+	for page in ("results", "building", "proposal"):
+		goto(at, page)
+		assert not at.exception and "No analysis yet." in text(at) and not at.metric
 
 
-def test_run_shows_kpis_map_cards_detail_proposal_and_trace(monkeypatch, tmp_path):
+def test_run_opens_results_then_building_and_proposal(monkeypatch, tmp_path):
 	fake = FakeAgent(roof_png(tmp_path))
 	at = start(monkeypatch, fake)
 	button(at, "Run analysis").click().run()
-	assert not at.exception and not at.error
+	assert not at.exception and not at.error and title(at) == "Results"
 	assert fake.received[0][-1]["content"].startswith("Find the 10 office buildings")
+	assert {m.label: m.value for m in at.metric} == {"Buildings analyzed": "185", "Capacity, top 2": "1,315 kW",
+		"Savings/yr, top 2": "$159,864", "CO₂ avoided, top 2": "622 t/yr"}
+	assert len(at.get("deck_gl_json_chart")) == 1
+	rows = [m.value for m in at.markdown if m.value.startswith("<div class='rw-row'>")]
+	assert len(rows) == 2 and "rw-dot" in rows[0] and "rw-dot" not in rows[1]  # only #1 carries the orange dot
+	assert "<b>10.93 yr</b> payback" in rows[0] and "<b>$142,145</b>/yr" in rows[0]
 
-	shown = metrics(at)
-	assert shown["Buildings analyzed"] == "185"
-	assert shown["Solar capacity · top 2"] == "1,315 kW"
-	assert shown["Annual savings · top 2"] == "$159,864/yr"
-	assert shown["CO₂ avoided · top 2"] == "622 t/yr"
-	assert shown["Payback"] == "10.93 yr"  # rank 1 is detailed by default
-	assert len(at.get("deck_gl_json_chart")) == 1 and len(at.get("image")) == 1
-	assert at.expander[0].label == "How the agent got here · 2 steps"
-	assert any("Dear owner," in m.value for m in at.markdown)  # the proposal letter
-	assert any(m.value.startswith("Top 2 offices") for m in at.markdown)  # rest of the answer, in an expander
-	assert [b.label for b in at.button if b.key and b.key.startswith("pick-")] == ["Viewing", "Details"]
+	at.button(key="view-999999999").click().run()  # View on the second row opens its Building page
+	assert not at.exception and title(at) == "Building"
+	assert len(values(at)) == 8 and "1,000 m²" in values(at)[0] and any("15.17 yr" in value for value in values(at))
+	at.selectbox(key="buildingPicker").select("240117").run()
+	assert any("10.93 yr" in value for value in values(at)) and len(at.get("image")) == 1
 
-	at.button(key="pick-999999999").click().run()  # select the second card
-	assert not at.exception
-	assert metrics(at)["Payback"] == "15.17 yr"
-	assert any("#2 · Second Building" in m.value for m in at.markdown)
+	goto(at, "proposal")
+	assert title(at) == "Proposal" and "Dear owner," in text(at)
+	goto(at, "analyze")
+	assert at.expander[-1].label == "Agent steps · 2"
 
 
 def test_what_if_recalculates_the_shown_buildings(monkeypatch, tmp_path):
 	at = start(monkeypatch, FakeAgent(roof_png(tmp_path)))
 	button(at, "Run analysis").click().run()
-	at.sidebar.slider[1].set_value(0)  # incentive 0%
+	goto(at, "assumptions")
+	at.slider[1].set_value(0)  # incentive 0%
 	button(at, "Recalculate").click().run()
-	assert not at.exception
-	assert any("What-if assumptions" in w.value for w in at.warning)
-	assert metrics(at)["Payback"] == "15.61 yr"  # 2,218,672 / 142,145 with no ITC
+	assert not at.exception and "What-if values are active" in text(at)
+
+	goto(at, "building")
+	payback = next(value for value in values(at) if "15.61 yr" in value)  # 2,218,672 / 142,145 with no ITC
+	assert "+4.68 yr vs sourced defaults" in payback
+	assert any("What-if assumptions are active" in info.value for info in at.info)
+
+	goto(at, "assumptions")
 	button(at, "Reset to sourced defaults").click().run()
-	assert metrics(at)["Payback"] == "10.93 yr" and not at.warning
+	goto(at, "building")
+	assert any("10.93 yr" in value for value in values(at)) and not at.info
 
 
 def test_failure_falls_back_to_the_last_saved_run(monkeypatch, tmp_path):
@@ -122,10 +151,10 @@ def test_failure_falls_back_to_the_last_saved_run(monkeypatch, tmp_path):
 	st.cache_resource.clear()
 	at = start(monkeypatch, FakeAgent(error=RuntimeError("429 RESOURCE_EXHAUSTED")))  # fresh session, no results yet
 	button(at, "Run analysis").click().run()
-	assert not at.exception
+	assert not at.exception and title(at) == "Analyze"
 	assert "free quota is used up" in at.error[0].value and "last saved analysis" in at.error[0].value
-	assert metrics(at)["Payback"] == "10.93 yr"
-	assert any("offline fallback" in i.value for i in at.info)
+	goto(at, "results")
+	assert at.metric[0].value == "185" and any("Saved analysis" in info.value for info in at.info)
 
 
 class QuotaSwitchAgent:
@@ -142,16 +171,18 @@ class QuotaSwitchAgent:
 		return {"messages": [AIMessage(f"Reply {self.turns}.")]}
 
 
-def test_model_used_is_shown_with_the_answer_and_in_the_sidebar(monkeypatch):
+def test_model_in_use_is_shown_in_the_sidebar_and_with_the_agent_steps(monkeypatch):
 	at = start(monkeypatch, QuotaSwitchAgent())
-	sidebar = lambda: [c.value for c in at.sidebar.caption if c.value.startswith("Model:")]
+	sidebar = lambda: [m.value for m in at.sidebar.markdown if m.value.startswith("Model:")]
 	assert sidebar() == ["Model: Gemini · gemini-4-hydrogen"]
 
 	button(at, "Run analysis").click().run()
-	assert not at.exception and not at.error
+	assert not at.exception and title(at) == "Results" and "did not rank buildings" in text(at) and "Reply 1." in text(at)
+	goto(at, "analyze")
 	assert "Model: Gemini · gemini-4-hydrogen" in [c.value for c in at.main.caption]
 
 	button(at, "Run analysis").click().run()
 	ollama = "Model: Ollama · qwen3.5:4b (local fallback, Gemini quota exhausted)"
-	assert ollama in [c.value for c in at.main.caption]
 	assert sidebar() == [ollama]
+	goto(at, "analyze")
+	assert ollama in [c.value for c in at.main.caption]

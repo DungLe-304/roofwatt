@@ -38,7 +38,7 @@ def showTrace(trace: list[dict], model: str | None = None) -> None:
 	import streamlit as st
 
 	calls = len(trace)
-	with st.expander(f"How the agent got here · {calls} step{'s' if calls != 1 else ''}", icon=":material/route:"):
+	with st.expander(f"Agent steps · {calls}"):
 		st.markdown(traceMarkdown(trace) or "The agent answered without calling a tool.")
 		if model:
 			st.caption(model)

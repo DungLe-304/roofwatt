@@ -48,12 +48,17 @@ def _fetch(params: dict) -> dict:
     api_key = os.getenv("NLR_API_KEY")
     if not api_key:
         raise RuntimeError("NLR_API_KEY is not set (see .env.example)")
-    for attempt in range(MAX_ATTEMPTS):
-        resp = requests.get(PVWATTS_URL, params={**params, "api_key": api_key}, timeout=30)
-        if resp.status_code != 429 or attempt == MAX_ATTEMPTS - 1:
-            break
-        time.sleep(2 ** attempt)
-    resp.raise_for_status()
+    # Key goes in the X-Api-Key header, never the URL: requests puts the URL in its error messages, and tool
+    # errors reach the agent and the UI. Any message that still contains the key is redacted as well.
+    try:
+        for attempt in range(MAX_ATTEMPTS):
+            resp = requests.get(PVWATTS_URL, params=params, headers={"X-Api-Key": api_key}, timeout=30)
+            if resp.status_code != 429 or attempt == MAX_ATTEMPTS - 1:
+                break
+            time.sleep(2 ** attempt)
+        resp.raise_for_status()
+    except requests.RequestException as error:
+        raise type(error)(str(error).replace(api_key, "***")) from None
     body = resp.json()
     if body.get("errors"):
         raise RuntimeError(f"PVWatts error: {body['errors']}")

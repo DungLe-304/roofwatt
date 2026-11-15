@@ -45,7 +45,7 @@ def test_deck_plots_only_rows_with_coordinates_and_highlights_rank_one():
 	spec = json.loads(rankingDeck(rows).to_json())
 	points = spec["layers"][0]["data"]
 	assert [point["buildingId"] for point in points] == ["240117"]
-	assert points[0]["color"] == [0, 255, 0]  # rank 1: bright green (start of the rank gradient)
+	assert points[0]["color"] == [255, 159, 28]  # rank 1: the one accent, solar orange
 	assert points[0]["paybackLabel"] == "10.93 yr"
 	assert spec["initialViewState"]["latitude"] == pytest.approx(29.71)
 
@@ -78,11 +78,13 @@ def test_view_fits_every_point_in_the_map_frame():
 	assert fitView([[-95.55, 29.71]], width_px=900, height_px=420).zoom == 13
 
 
-def test_rank_colors_run_from_green_through_yellow_to_red_and_cover_every_rank():
-	from ui.ranking import rankColors
-	for count in (1, 2, 3, 10, 20):
-		colors = rankColors(count)
-		assert len(colors) >= count and colors[0] == [0, 255, 0]
-	ten = rankColors(10)
-	assert ten[4] == [204, 255, 0] and ten[5] == [255, 255, 0] and ten[9] == [255, 51, 0]
-	assert rankColors(0) and rankColors(10_000)  # no division by zero, no zero step
+def test_other_ranks_are_blue_and_dark_theme_switches_basemap_and_ring():
+	rows = [ROWS[0] | {"lat": 29.71, "lon": -95.55}, ROWS[0] | {"rank": 2, "buildingId": "7", "lat": 29.72, "lon": -95.5}]
+	light = json.loads(rankingDeck(rows, "7").to_json())
+	dark = json.loads(rankingDeck(rows, "7", dark=True).to_json())
+	points = {point["label"]: point for point in next(layer for layer in light["layers"] if layer["id"] == "ranked")["data"]}
+	assert points["1"]["color"] == [255, 159, 28] and points["2"]["color"] == [47, 128, 237]
+	assert points["2"]["lineWidth"] == 4 and points["1"]["lineWidth"] == 1.5  # the selected building is ringed
+	assert "positron" in light["mapStyle"] and "dark-matter" in dark["mapStyle"]
+	darkPoints = next(layer for layer in dark["layers"] if layer["id"] == "ranked")["data"]
+	assert next(point for point in darkPoints if point["label"] == "2")["lineColor"] == [245, 245, 247]
