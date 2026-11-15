@@ -218,6 +218,15 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   `color-scheme` on `.stApp`). `ui/theme.py` removed. Tests switch pages with a `goto` helper (AppTest.switch_page
   does not take function pages). Checked in headless Chrome, both themes, 1920x1080 and 1366x768. 93 tests.
 - Branch `retro-ui` (local commit `f814b2a`, not pushed): Windows 98 restyle, kept as an alternative.
+- Roof footprint fix (`minimal-ui`): gross ÷ stories overstated towers and buildings with a large lower floor
+  (Vexcel images: 1840 Dynamic Way roof ~3,400 m² vs 6,503 m² derived; 1500 S Dairy Ashford ~3,450 vs 4,320).
+  Footprint is now min(CoStar `grossTypicalFloorSquareFeet`, gross ÷ stories); 118 of 185 Houston offices shrink.
+  A typical floor under 25% of gross ÷ stories is ignored as a data error (352552: 2 ft²). New optional
+  `Building.typicalFloorSqft` (data contract change, filled by `data/costar_client.py`). Houston offices now:
+  171 ranked, 14 below 50 kW, 0 errors; top 3 = 240117, 362982, 23573. 97 tests.
+- Key leak fix: PVWatts errors carried the request URL with `api_key` into tool output (agent + UI). The NLR key now
+  goes in the `X-Api-Key` header (checked live); PVWatts and Vexcel errors redact the key (Vexcel only takes
+  `api_key` in the URL). Repo, cache and git history checked: no key. 99 tests.
 
 ## Modified Files
 - Khoa (fallback): `agent/agent.py`, `agent/tools.py` (docstring), `app.py`, `ui/ranking.py` (reformat), `pyproject.toml`, `uv.lock`
@@ -252,9 +261,11 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
 - Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background. Inter loads from
   Google Fonts; offline it falls back to the system sans-serif.
 - `streamlit-hotkeys` is no longer used by `app.py` (still in requirements).
-- Roof image frame uses the tier-1 footprint (sqft / stories), which undershoots wide low buildings (e.g. 362982
+- Roof image frame uses the tier-1 footprint, which undershoots wide low buildings (e.g. 362982
   spills past the frame edges). `cache/` is gitignored: run `python tools/prefetch_images.py` on the demo machine.
-- CoStar extract has no roof footprint (tier 1 uses sqft / stories).
+- CoStar extract has no roof footprint (tier 1 uses min(typical floor, sqft / stories)); irregular shapes (V, X
+  plans) can still be ~20% over the imaged roof. Vexcel frames depend on the footprint, so rerun the prefetch.
+- PVWatts answers 429 when `rankBuildings` (8 threads) hits many uncached sizes at once; warm the cache sequentially.
 - `COST_PER_WATT_BY_SIZE_KW` uses national medians; Texas prices are not broken out by LBNL.
 - Repo is PUBLIC and now contains the CoStar extract (`commercial-properties.csv`, `data/*.jsonl`): check
   CoStar data terms before submission. Cloning needs `git lfs`.

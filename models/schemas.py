@@ -18,6 +18,7 @@ class Building(Contract):
     buildingSqft: float | None = Field(default=None, gt=0, validation_alias=AliasChoices("buildingSqft", "building_sqft"))
     buildingAreaSource: str | None = None
     rentableSqft: float | None = Field(default=None, gt=0)
+    typicalFloorSqft: float | None = Field(default=None, gt=0, validation_alias=AliasChoices("typicalFloorSqft", "typical_floor_sqft"))
     footprintM2: float | None = Field(default=None, gt=0, validation_alias=AliasChoices("footprintM2", "footprint_m2"))
     stories: int | None = None
     yearBuilt: int | None = Field(default=None, validation_alias=AliasChoices("yearBuilt", "year_built"))
@@ -32,6 +33,8 @@ class Building(Contract):
     def property_type(self) -> str: return self.propertyType
     @property
     def building_sqft(self) -> float | None: return self.buildingSqft
+    @property
+    def typical_floor_sqft(self) -> float | None: return self.typicalFloorSqft
     @property
     def footprint_m2(self) -> float | None: return self.footprintM2
     @property

@@ -4,7 +4,7 @@ import config
 from models.roof import M2_PER_FT2
 
 S = config.SOURCES
-ROOF_METHOD = "Tier 1 · footprint (gross area ÷ stories) × usable factor"
+ROOF_METHOD = "Tier 1 · footprint (smaller of typical floor and gross area ÷ stories) × usable factor"
 
 
 def _whatIf(value: str, default: str, changed: bool) -> str:
@@ -39,8 +39,8 @@ def detailFacts(row: dict, building=None, assumptions: dict | None = None) -> li
 			f"the median for this system size: {S['COST_PER_WATT_BY_SIZE_KW']})." if flatPrice else
 			f"(median price for this system size). Source: {S['COST_PER_WATT_BY_SIZE_KW']}.")),
 		("Usable roof", f"{row['usableRoofM2']:,.0f} m²",
-			f"{ROOF_METHOD}: gross area ÷ stories × {M2_PER_FT2} m²/ft² × {usable}. "
-			f"Usable factor: {S['USABLE_FACTOR']}. Gross area and stories: {S['BUILDING']}."
+			f"{ROOF_METHOD}: min(typical floor, gross area ÷ stories) × {M2_PER_FT2} m²/ft² × {usable}. "
+			f"Usable factor: {S['USABLE_FACTOR']}. Typical floor, gross area and stories: {S['BUILDING']}."
 			f"{_whatIf(str(usable), str(config.USABLE_FACTOR), usable != config.USABLE_FACTOR)}"),
 	]
 	if building is not None:
@@ -86,7 +86,7 @@ def showDetail(row: dict, imagePath: str | None, imageError: str | None, buildin
 			st.info(f"Aerial image unavailable: {imageError or 'not available'}")
 		usable = (assumptions or {}).get("usableFactor", config.USABLE_FACTOR)
 		st.caption(f"Roof method: {ROOF_METHOD} {usable}", help=f"Usable factor: {S['USABLE_FACTOR']}. CoStar has no roof "
-			"footprint, so footprint = gross building area ÷ stories.")
+			"footprint, so footprint = the smaller of the typical floor area and gross building area ÷ stories.")
 	with listColumn:
 		for index, label in enumerate(ORDER):
 			fact = facts[label]

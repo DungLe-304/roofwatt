@@ -53,6 +53,7 @@ class CostarClient:
 		grossArea = record.get("grossBuildingAreaSquareFeet")
 		rentableArea = record.get("rentableBuildingAreaSquareFeet")
 		stories = record.get("numStoriesAboveGrade")
+		typicalFloor = record.get("grossTypicalFloorSquareFeet")
 		builtYears = {event["year"] for event in (record.get("constructionEvents") or []) if event.get("eventType") == 2 and event.get("year", 0) > 0}
 		warnings = ["Owner name is unresolved; property contacts contain identifiers.", "Roof footprint is not measured by this adapter."]
 		if grossArea is None or grossArea <= 0:
@@ -62,7 +63,7 @@ class CostarClient:
 			warnings.append("Multiple construction completion years; yearBuilt is unresolved.")
 		if address.get("latitude") is None or address.get("longitude") is None:
 			warnings.append("Coordinates are incomplete.")
-		return Building(buildingId=str(record["id"]), propertyType=self.propertyTypes.get(record.get("propertyType"), "Unknown"), address=street, city=address.get("city"), state=address.get("state"), lat=address.get("latitude"), lon=address.get("longitude"), buildingSqft=grossArea, buildingAreaSource="grossBuildingAreaSquareFeet" if grossArea is not None else None, rentableSqft=rentableArea if rentableArea is not None and rentableArea > 0 else None, stories=stories if stories is not None and stories > 0 else None, yearBuilt=next(iter(builtYears)) if len(builtYears) == 1 else None, matterportModelIds=self.matterportIds.get(str(record["id"]), []), dataWarnings=warnings)
+		return Building(buildingId=str(record["id"]), propertyType=self.propertyTypes.get(record.get("propertyType"), "Unknown"), address=street, city=address.get("city"), state=address.get("state"), lat=address.get("latitude"), lon=address.get("longitude"), buildingSqft=grossArea, buildingAreaSource="grossBuildingAreaSquareFeet" if grossArea is not None else None, rentableSqft=rentableArea if rentableArea is not None and rentableArea > 0 else None, typicalFloorSqft=typicalFloor if typicalFloor is not None and typicalFloor > 0 else None, stories=stories if stories is not None and stories > 0 else None, yearBuilt=next(iter(builtYears)) if len(builtYears) == 1 else None, matterportModelIds=self.matterportIds.get(str(record["id"]), []), dataWarnings=warnings)
 
 	def iterMatches(self, city: str, propertyType: str = "Office", minSqft: float = 0):
 		"""Yield every existing property record matching the filters, in dataset order, without a limit."""

@@ -57,7 +57,7 @@ def _safe(buildingId, compute):
 def analyzeRoof(buildingId: str) -> dict:
 	"""Estimate the usable roof area (m²) of one building (tier 1: footprint × usable factor).
 
-	Footprint is CoStar footprint if present, else gross building area / stories, converted ft² -> m².
+	Footprint is CoStar footprint if present, else the smaller of the typical floor area and gross building area / stories, converted ft² -> m².
 	Returns usableRoofM2, method and the usable factor assumption, or an error.
 	"""
 	def compute(building):

@@ -21,6 +21,8 @@ def env(tmp_path, monkeypatch):
 
 	def fake_get(url, params, timeout):
 		state["calls"].append((url, params))
+		if isinstance(state["response"], Exception):
+			raise state["response"]
 		return state["response"]
 
 	monkeypatch.setattr(imagery.requests, "get", fake_get)
@@ -84,3 +86,10 @@ def test_cache_keys_are_filesystem_safe(tmp_path, monkeypatch):
 	path = cache.write_bytes("vexcel", "../evil/../id", ".jpeg", b"x")
 	assert path.parent == tmp_path / "vexcel"
 	assert cache.find("vexcel", "../evil/../id") == path
+
+
+def test_connection_errors_never_contain_the_api_key(env):
+	env["response"] = imagery.requests.ConnectionError("Max retries exceeded with url: /v2/ortho/extract?api_key=test-token")
+	with pytest.raises(imagery.requests.ConnectionError) as error:
+		imagery.get_roof_image("b1", 29.76, -95.37, extent_m=80)
+	assert "test-token" not in str(error.value) and "api_key=***" in str(error.value)
