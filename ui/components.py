@@ -169,7 +169,7 @@ def assumptionsForm() -> bool:
 	"""
 	defaults = defaultAssumptions()
 	current = st.session_state.get("assumptions") or defaults
-	with st.form("assumptionsForm", border=False):
+	with st.form("assumptionsForm", border=False, enter_to_submit=False):
 		energy, cost, roof = st.columns(3, gap="large")
 		with energy:
 			st.markdown("<p class='rw-label'>Electricity</p>", unsafe_allow_html=True)
@@ -186,7 +186,7 @@ def assumptionsForm() -> bool:
 			st.caption(f"Default {defaults['incentivePct']:.0%}. {config.SOURCES['INCENTIVE_PCT']}.")
 		with roof:
 			st.markdown("<p class='rw-label'>Roof</p>", unsafe_allow_html=True)
-			usable = st.slider("Usable roof factor", min_value=0.30, max_value=0.90, step=0.05, value=float(current["usableFactor"]))
+			usable = st.slider("Usable roof factor", min_value=0.30, max_value=1.00, step=0.05, value=float(current["usableFactor"]))
 			st.caption(f"Default {defaults['usableFactor']}. {config.SOURCES['USABLE_FACTOR']}.")
 		pressed = st.form_submit_button("Recalculate", type="primary")
 		if pressed:
