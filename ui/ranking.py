@@ -5,12 +5,14 @@ import math
 import pandas as pd
 import pydeck as pdk
 
+from ui.styles import FONT, INK, LATTE, MOCHA
 from ui.sunlight import solarNoon, sunlightEffects
 
-ORANGE = [255, 159, 28]  # #FF9F1C, the one accent: the #1 building
-BLUE = [47, 128, 237]  # #2F80ED, data color: every other ranked building
-INK = [29, 29, 31]  # #1D1D1F
-PAPER = [245, 245, 247]  # #F5F5F7
+
+def _rgb(hexColor: str, alpha: int | None = None) -> list[int]:
+	rgb = [int(hexColor[i:i + 2], 16) for i in (1, 3, 5)]
+	return rgb if alpha is None else [*rgb, alpha]
+
 LAYER_ID = "ranked"
 MAP_HEIGHT_PX = 540
 MAP_MIN_WIDTH_PX = 560  # narrowest map column we expect; the view is fitted to this so wider screens only add margin
@@ -73,24 +75,26 @@ def rankingDeck(rows: list[dict], selectedId: str | None = None, *, dark: bool =
 		queryDate = None, city = "Houston", focusRow = None) -> pdk.Deck | None:
 	"""3D map of the ranked buildings, or None when no row has coordinates.
 
-	Points: #1 orange, the others blue, size ~ system kW, the selected one ringed. `buildings` (OSM footprints)
+	Points: #1 peach, the others blue, size ~ system kW, the selected one ringed. `buildings` (OSM footprints)
 	are extruded by tagged height; `queryDate` lights the scene at solar noon. `focusRow` zooms to one building.
 	"""
 	located = [row for row in rows if row.get("lat") is not None and row.get("lon") is not None]
 	if not located:
 		return None
 	maxKw = max(row["systemKw"] for row in located) or 1
-	ring = PAPER if dark else INK
+	palette = MOCHA if dark else LATTE  # Catppuccin Mocha / Latte, as in .streamlit/config.toml
+	accent, data = _rgb(palette["peach"]), _rgb(palette["blue"])  # #1 peach (the one accent), the others blue
+	dataLabel = _rgb(INK) if dark else _rgb(LATTE["base"])
 	points = [{
 		"buildingId": str(row["buildingId"]),
 		"position": [row["lon"], row["lat"]],
 		"label": str(row["rank"]),
 		"name": _name(row),
-		"color": ORANGE if row["rank"] == 1 else BLUE,
-		"labelColor": INK if row["rank"] == 1 else [255, 255, 255],
+		"color": accent if row["rank"] == 1 else data,
+		"labelColor": _rgb(INK) if row["rank"] == 1 else dataLabel,
 		"radius": round(11 + 13 * math.sqrt(max(row["systemKw"], 0) / maxKw), 1),  # area grows with kW
 		"lineWidth": 4 if str(row["buildingId"]) == str(selectedId) else 1.5,
-		"lineColor": ring if str(row["buildingId"]) == str(selectedId) else ([0, 0, 0] if dark else [255, 255, 255]),
+		"lineColor": _rgb(palette["text"]) if str(row["buildingId"]) == str(selectedId) else _rgb(palette["base"]),
 		"paybackLabel": f"{row['simplePaybackYr']:.2f} yr",
 		"savingsLabel": f"${row['annualSavingsUsd']:,.0f}/yr",
 		"co2Label": f"{row['co2TonsPerYear']:,.0f} t CO₂/yr",
@@ -108,17 +112,17 @@ def rankingDeck(rows: list[dict], selectedId: str | None = None, *, dark: bool =
 		west, east = min(p[0] for p in vertices) - 0.001, max(p[0] for p in vertices) + 0.001
 		south, north = min(p[1] for p in vertices) - 0.001, max(p[1] for p in vertices) + 0.001
 		layers.append(pdk.Layer("PolygonLayer", [{"polygon": [[west, south], [east, south], [east, north], [west, north]]}],
-			id = "shadow-ground", get_polygon = "polygon", get_fill_color = [44, 44, 46, 110] if dark else [235, 238, 240, 100],
+			id = "shadow-ground", get_polygon = "polygon", get_fill_color = _rgb(palette["surface0"], 110 if dark else 100),
 			stroked = False, pickable = False))
 		layers.append(pdk.Layer("PolygonLayer", buildings, id = "osm-buildings", get_polygon = "footprint",
 			get_elevation = "heightM", extruded = True, filled = True, stroked = False,
-			get_fill_color = [99, 99, 102] if dark else [174, 174, 178], material = True, pickable = False))
+			get_fill_color = _rgb(palette["surface2"]), material = True, pickable = False))
 	layers.append(pdk.Layer("ScatterplotLayer", points, id = LAYER_ID, get_position = "position", get_fill_color = "color",
 		get_radius = "radius", radius_units = "'pixels'", stroked = True, get_line_color = "lineColor",
 		get_line_width = "lineWidth", line_width_units = "'pixels'", pickable = True,
 		billboard = True, parameters = FLAT_ON_TOP))  # round dots facing the camera, also on the tilted map
 	layers.append(pdk.Layer("TextLayer", points, get_position = "position", get_text = "label", get_color = "labelColor",
-		get_size = 15, get_text_anchor = "'middle'", get_alignment_baseline = "'center'", font_weight = 700,
+		get_size = 15, get_text_anchor = "'middle'", get_alignment_baseline = "'center'", font_weight = 700, font_family = FONT,
 		parameters = FLAT_ON_TOP))
 	effects = []
 	if queryDate:
@@ -126,8 +130,8 @@ def rankingDeck(rows: list[dict], selectedId: str | None = None, *, dark: bool =
 		effects = sunlightEffects(int(sunTime.timestamp() * 1000))
 	tooltip = {"html": "<b>#{label} · {name}</b><br/>Payback <b>{paybackLabel}</b><br/>Savings {savingsLabel}"
 		"<br/>{systemLabel} · {co2Label}",
-		"style": {"backgroundColor": "#2C2C2E" if dark else "#FFFFFF", "color": "#F5F5F7" if dark else "#1D1D1F",
-			"fontSize": "15px", "borderRadius": "10px", "border": f"1px solid {'#38383A' if dark else '#E5E5EA'}",
+		"style": {"backgroundColor": palette["mantle"], "color": palette["text"], "fontFamily": FONT,
+			"fontSize": "15px", "borderRadius": "0", "border": f"1px solid {palette['surface1']}",
 			"padding": "10px 12px"}}
 	return pdk.Deck(layers = layers, effects = effects, initial_view_state = view, map_provider = "carto",
 		map_style = MAP_STYLES[bool(dark)], tooltip = tooltip)

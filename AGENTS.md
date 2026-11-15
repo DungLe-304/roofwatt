@@ -73,7 +73,8 @@ Ranking: drop `system_kw < 50`; sort payback ascending, tie-break CO₂ descendi
 - Every assumption lives in `config.py` with a cited source. **Never invent numbers**; leave TODO if unsourced.
 - Watch units: W vs kW, kg vs t, ft² vs m².
 - Every reported number comes from a tool; the agent never computes or copies numbers itself.
-- UI: no gradients, no emojis, orange `#FF9F1C` only as a fill (never text); keep custom CSS in `ui/styles.py`.
+- UI: Catppuccin Latte (light) / Mocha (dark), CaskaydiaCove Nerd Font Mono, sharp corners (no border-radius on
+  boxes). No gradients, no emojis, Peach only as a fill (never text); keep custom CSS in `ui/styles.py`.
 - Never commit `.env`, keys, or `.agents/` / `.claude/skills/developing-with-streamlit` (symlinks into `.venv`).
 - Tony and Khoa own separate files. Remote has `main` (default) and `master`; push both:
   `git push origin main && git push origin main:master`.
@@ -87,7 +88,7 @@ and rewrite `Immediate Next Steps`. Keep Part 2 short: state what is true now, n
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Opus 5.5) - 2026-11-14 (`main` = `master`)
+Claude Code (Opus 5.5) - 2026-11-15 (`master` is one commit ahead of `main`: Catppuccin restyle, under test)
 
 ## Current Objective
 Demo-ready: the demo query works end-to-end in either AI engine, with results, 3D map, roof images and letter.
@@ -103,6 +104,8 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 3
 - AI engine switch (`ai-mode`, merged): sidebar Cloud / Local with Active/Offline status. Local lists the models
   pulled into Ollama. Cloud falls back to the local model on a Gemini quota error and flips the switch to Local;
   picking Cloud again retries Gemini. Run is disabled with the reason when the chosen engine cannot run.
+- Restyle on `master` only: Catppuccin Latte/Mocha theme in `.streamlit/config.toml`, CaskaydiaCove Nerd Font Mono
+  self-hosted from `static/fonts/` (OFL), sharp corners; map and Copy button use the same palette (`ui/styles.py`).
 - 108 tests pass. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues
@@ -116,11 +119,12 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 3
 - `config.py` caveats: ITC 30% needs placed-in-service by 2027-12-31; EIA rate is an all-in average; eGRID is not
   marginal; `COST_PER_WATT_BY_SIZE_KW` uses national medians. The letter omits the ITC caveat.
 - Letter split (`ui/proposal.py`) not yet seen on a live Gemini reply.
-- Map tiles (CARTO) and the Inter font need internet.
+- Map tiles (CARTO) need internet (the font is self-hosted).
 - Unused dependency: `streamlit-hotkeys` is still in `pyproject.toml` / `uv.lock` (removed from requirements.txt).
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
 
 ## Immediate Next Steps
+0. Review the Catppuccin restyle on `master` (both themes, Results map, Copy button); if good, merge into `main`.
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 3D footprints are cached for the demo.
 2. On the demo machine: `python tools/prefetch_images.py`, `ollama pull qwen3.5:4b`, then run the demo query in
    both engines; check that the local model calls `rankBuildings` and the Agent steps look right.

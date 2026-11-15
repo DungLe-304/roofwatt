@@ -45,7 +45,7 @@ def test_deck_plots_only_rows_with_coordinates_and_highlights_rank_one():
 	spec = json.loads(rankingDeck(rows).to_json())
 	points = spec["layers"][0]["data"]
 	assert [point["buildingId"] for point in points] == ["240117"]
-	assert points[0]["color"] == [255, 159, 28]  # rank 1: the one accent, solar orange
+	assert points[0]["color"] == [254, 100, 11]  # rank 1: the one accent, Catppuccin Latte peach
 	assert points[0]["paybackLabel"] == "10.93 yr"
 	assert spec["initialViewState"]["latitude"] == pytest.approx(29.71)
 
@@ -83,8 +83,8 @@ def test_other_ranks_are_blue_and_dark_theme_switches_basemap_and_ring():
 	light = json.loads(rankingDeck(rows, "7").to_json())
 	dark = json.loads(rankingDeck(rows, "7", dark=True).to_json())
 	points = {point["label"]: point for point in next(layer for layer in light["layers"] if layer["id"] == "ranked")["data"]}
-	assert points["1"]["color"] == [255, 159, 28] and points["2"]["color"] == [47, 128, 237]
+	assert points["1"]["color"] == [254, 100, 11] and points["2"]["color"] == [30, 102, 245]  # Latte peach, blue
 	assert points["2"]["lineWidth"] == 4 and points["1"]["lineWidth"] == 1.5  # the selected building is ringed
 	assert "positron" in light["mapStyle"] and "dark-matter" in dark["mapStyle"]
 	darkPoints = next(layer for layer in dark["layers"] if layer["id"] == "ranked")["data"]
-	assert next(point for point in darkPoints if point["label"] == "2")["lineColor"] == [245, 245, 247]
+	assert next(point for point in darkPoints if point["label"] == "2")["lineColor"] == [205, 214, 244]  # Mocha text

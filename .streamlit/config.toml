@@ -1,39 +1,94 @@
-# RoofWatt minimal theme: neutral surfaces, one accent (solar orange), light and dark.
-# No `base` is set, so the app follows the viewer's system setting; the theme selector is in the app menu
-# (top right). Custom CSS lives in ui/styles.py and uses currentColor, so it needs no per-theme copy.
-# Inter loads from Google Fonts and falls back to the bundled sans-serif offline.
+# RoofWatt theme: Catppuccin Latte (light) and Catppuccin Mocha (dark), one accent (Peach), sharp corners.
+# Palette: https://catppuccin.com/palette (MIT). No `base` is set, so the app follows the viewer's system setting;
+# the theme selector is in the app menu (top right). Custom CSS lives in ui/styles.py.
+# Font: CaskaydiaCove Nerd Font Mono (Nerd Fonts patch of Cascadia Code, SIL OFL 1.1, see static/fonts/LICENSE),
+# self-hosted from static/fonts so it also works offline.
+[server]
+enableStaticServing = true
+
+[[theme.fontFaces]]
+family = "CaskaydiaCove Nerd Font Mono"
+url = "app/static/fonts/CaskaydiaCoveNerdFontMono-Regular.ttf"
+weight = 400
+
+[[theme.fontFaces]]
+family = "CaskaydiaCove Nerd Font Mono"
+url = "app/static/fonts/CaskaydiaCoveNerdFontMono-Italic.ttf"
+weight = 400
+style = "italic"
+
+[[theme.fontFaces]]
+family = "CaskaydiaCove Nerd Font Mono"
+url = "app/static/fonts/CaskaydiaCoveNerdFontMono-SemiBold.ttf"
+weight = 600
+
+[[theme.fontFaces]]
+family = "CaskaydiaCove Nerd Font Mono"
+url = "app/static/fonts/CaskaydiaCoveNerdFontMono-Bold.ttf"
+weight = 700
+
 [theme]
-primaryColor = "#FF9F1C"
-font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+font = "'CaskaydiaCove Nerd Font Mono', monospace"
+headingFont = "'CaskaydiaCove Nerd Font Mono', monospace"
+codeFont = "'CaskaydiaCove Nerd Font Mono', monospace"
 baseFontSize = 17
-baseRadius = "12px"
+baseRadius = "none"
+buttonRadius = "none"
 showWidgetBorder = true
 showSidebarBorder = true
 metricValueFontSize = "2rem"
 metricValueFontWeight = 600
 linkUnderline = true
 
+# Catppuccin Latte
 [theme.light]
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F5F5F7"
-textColor = "#1D1D1F"
-borderColor = "#E5E5EA"
-linkColor = "#13294B"  # brand navy, used sparingly (14:1 on white)
+primaryColor = "#FE640B"              # peach
+backgroundColor = "#EFF1F5"           # base
+secondaryBackgroundColor = "#E6E9EF"  # mantle
+textColor = "#4C4F69"                 # text
+borderColor = "#BCC0CC"               # surface1
+linkColor = "#1E66F5"                 # blue
+codeBackgroundColor = "#E6E9EF"       # mantle
+codeTextColor = "#4C4F69"             # text
+redColor = "#D20F39"
+orangeColor = "#FE640B"
+yellowColor = "#DF8E1D"
+greenColor = "#40A02B"
+blueColor = "#1E66F5"
+violetColor = "#8839EF"               # mauve
+grayColor = "#8C8FA1"                 # overlay1
+dataframeBorderColor = "#CCD0DA"      # surface0
+dataframeHeaderBackgroundColor = "#E6E9EF"
+chartCategoricalColors = ["#1E66F5", "#FE640B", "#40A02B", "#8839EF", "#D20F39", "#179299", "#DF8E1D", "#EA76CB"]
 
 [theme.light.sidebar]
-backgroundColor = "#F5F5F7"
-secondaryBackgroundColor = "#FFFFFF"
+backgroundColor = "#E6E9EF"           # mantle
+secondaryBackgroundColor = "#EFF1F5"  # base
 
+# Catppuccin Mocha
 [theme.dark]
-backgroundColor = "#000000"
-secondaryBackgroundColor = "#1C1C1E"
-textColor = "#F5F5F7"
-borderColor = "#38383A"
-linkColor = "#F5F5F7"
+primaryColor = "#FAB387"              # peach
+backgroundColor = "#1E1E2E"           # base
+secondaryBackgroundColor = "#313244"  # surface0
+textColor = "#CDD6F4"                 # text
+borderColor = "#45475A"               # surface1
+linkColor = "#89B4FA"                 # blue
+codeBackgroundColor = "#181825"       # mantle
+codeTextColor = "#CDD6F4"             # text
+redColor = "#F38BA8"
+orangeColor = "#FAB387"
+yellowColor = "#F9E2AF"
+greenColor = "#A6E3A1"
+blueColor = "#89B4FA"
+violetColor = "#CBA6F7"               # mauve
+grayColor = "#7F849C"                 # overlay1
+dataframeBorderColor = "#313244"      # surface0
+dataframeHeaderBackgroundColor = "#181825"
+chartCategoricalColors = ["#89B4FA", "#FAB387", "#A6E3A1", "#CBA6F7", "#F38BA8", "#94E2D5", "#F9E2AF", "#F5C2E7"]
 
 [theme.dark.sidebar]
-backgroundColor = "#1C1C1E"
-secondaryBackgroundColor = "#2C2C2E"
+backgroundColor = "#181825"           # mantle
+secondaryBackgroundColor = "#313244"  # surface0
 
 [client]
 toolbarMode = "minimal"  # menu keeps only About + the theme selector

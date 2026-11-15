@@ -9,6 +9,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import config
+from ui.styles import FONT, FONT_URL, LATTE, MOCHA
 from ui.whatif import defaultAssumptions
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
@@ -164,11 +165,12 @@ def rankedList(rows: list[dict], selectedId: str, height: int, onView) -> None:
 
 def copyButton(text: str, dark: bool) -> None:
 	"""Copy-to-clipboard button (components iframe; Streamlit allows clipboard-write there)."""
-	ink, paper, line = ("#F5F5F7", "#1C1C1E", "#38383A") if dark else ("#1D1D1F", "#FFFFFF", "#E5E5EA")
+	palette = MOCHA if dark else LATTE  # same colors as the theme's widgets (Catppuccin Mocha / Latte)
+	ink, paper, line = palette["text"], palette["base"], palette["surface1"]
 	components.html(f"""
-	<style>body {{ margin: 0; }}</style>
-	<button id="copy" style="width:100%;height:40px;border-radius:12px;border:1px solid {line};background:{paper};
-		color:{ink};font:500 16px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">Copy</button>
+	<style>body {{ margin: 0; }} @font-face {{ font-family: 'CaskaydiaCove Nerd Font Mono'; src: url('{FONT_URL}'); }}</style>
+	<button id="copy" style="width:100%;height:40px;border-radius:0;border:1px solid {line};background:{paper};
+		color:{ink};font:400 16px {FONT};cursor:pointer">Copy</button>
 	<script>
 	const text = {json.dumps(text)};
 	const button = document.getElementById("copy");
