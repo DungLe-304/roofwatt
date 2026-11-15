@@ -114,8 +114,11 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   fixed calls, table + `## Proposal letter`, no file tools); 6 of 7 browser runs gave a full letter with tool numbers.
 - Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`) and
   across reloads / new tabs (last choice saved in `cache/ui/engine.json`, shared by every browser on this server).
+- Ranking: unique ranks 1, 2, 3, ... in `rankBuildings` and the what-if recalculation (equal payback ordered by
+  CO₂ avoided; no shared ranks). The agent prompt no longer says equal payback shares a rank.
 - Structured search: "Use prompt" writes the filters into the query field (no run); Run analysis sends it.
-  The City filter (outside the form, kept across pages) sets the sidebar city at once.
+  City and Property type sit outside the filter form; City is kept across pages and sets the sidebar city at once
+  (starts at the last run's city, else Houston).
 - 118 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
@@ -132,11 +135,17 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   marginal; `COST_PER_WATT_BY_SIZE_KW` uses national medians. The letter omits the ITC caveat.
 - Letter split (`ui/proposal.py`) works on Local replies; not yet seen on a live Gemini reply.
 - Map tiles (CARTO) need internet; fonts are bundled. Restart Streamlit after newly enabling static serving.
+- Restart Streamlit after editing `ui/` or `agent/` modules: without `watchdog` the running server once kept the old
+  `ui/components.py` while loading the new `app.py` (TypeError on the Analyze page). `pip install watchdog` may help.
+- `cache/ui/last_run.json` (Los Angeles run) predates unique ranks and still shows shared ranks (4, 4, 6, 6, ...)
+  until a new successful run overwrites it.
+- Sidebar city shows the City filter, not the city of the results on screen, until the next run.
 - Unused dependency: `streamlit-hotkeys` is still in `pyproject.toml` / `uv.lock` (removed from requirements.txt).
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
 
 ## Immediate Next Steps
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
 2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`.
-3. When Gemini quota resets (~03:00 ET Nov 15): one live run to refresh `last_run.json` and check the letter split.
+3. One live Houston demo run (Gemini if quota is back, else Local) to refresh `last_run.json` with unique ranks
+   and check the letter split on a Gemini reply.
 4. Optional: ITC `caveats` in finance tool output so the pitch states them.
