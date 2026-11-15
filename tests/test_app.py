@@ -1,6 +1,8 @@
 """Streamlit app with fake agents (no LLM, no network): the five pages, run flow, what-if, fallback, AI modes."""
 
+import io
 import json
+import pathlib
 
 import pytest
 import streamlit as st
@@ -157,6 +159,18 @@ def test_sidebar_city_follows_the_city_filter_across_pages(monkeypatch):
 	assert "Los Angeles, CA" in sidebar()
 	goto(at, "analyze")
 	assert at.selectbox(key="filterCity").value == "Los Angeles"
+
+
+def test_a_git_lfs_pointer_instead_of_the_data_stops_with_a_clear_error(monkeypatch):
+	realOpen = pathlib.Path.open
+	def fakeOpen(path, mode="r", *args, **kwargs):
+		if path.name == "commercial-property.jsonl" and "b" in mode:
+			return io.BytesIO(b"version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n")
+		return realOpen(path, mode, *args, **kwargs)
+	monkeypatch.setattr(pathlib.Path, "open", fakeOpen)
+	at = start(monkeypatch, FakeAgent())
+	assert not at.exception and at.error[0].value.startswith("The CoStar data file is a Git LFS pointer")
+	assert not at.title  # the app stops before any page runs
 
 
 def test_what_if_recalculates_the_shown_buildings(monkeypatch, tmp_path):

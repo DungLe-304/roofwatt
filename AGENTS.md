@@ -119,7 +119,11 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Structured search: "Use prompt" writes the filters into the query field (no run); Run analysis sends it.
   City and Property type sit outside the filter form; City is kept across pages and sets the sidebar city at once
   (starts at the last run's city, else Houston).
-- 118 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- Streamlit Community Cloud prep: `uv.lock` (read first by Cloud; in sync, Python 3.13) installs the app;
+  `cache/pvwatts/` is committed so a fresh host does not re-query PVWatts for all 171 sizes; the app stops with a
+  clear error if `data/commercial-property.jsonl` is only a Git LFS pointer. Keys go in the app's Secrets (root-level
+  TOML keys become environment variables). Vercel cannot host it (serverless, no long-lived Streamlit server).
+- 119 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues
@@ -147,6 +151,8 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Repo is PUBLIC and contains the CoStar extract: check CoStar data terms before submission.
 
 ## Immediate Next Steps
+0. Deploy on share.streamlit.io: repo `DungLe-304/roofwatt`, branch `main`, file `app.py`, Python 3.13, Secrets
+   `GOOGLE_API_KEY`, `NLR_API_KEY`, `VEXCEL_API_KEY`. Only Cloud (Gemini) works there: no Ollama on the host.
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
 2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`.
 3. Fix the empty Gemini reply (raise the output cap or limit Gemini thinking), then one Gemini demo run after the

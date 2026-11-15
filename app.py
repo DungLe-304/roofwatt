@@ -430,6 +430,12 @@ def assumptionsPage():
 
 
 if __name__ == "__main__":
+	# A host that clones without Git LFS gets a small pointer file instead of the CoStar extract: say so plainly
+	with (appRoot / "data" / "commercial-property.jsonl").open("rb") as dataFile:
+		if dataFile.read(40).startswith(b"version https://git-lfs"):
+			st.error("The CoStar data file is a Git LFS pointer, not the data. Pull it with `git lfs pull` "
+				"(or enable Git LFS on the host) and restart the app.", title = "Building data is missing")
+			st.stop()
 	savedEngine = loadEngineChoice()
 	for name, default in {"run": None, "chatMessages": [], "selectedId": None, "assumptions": None, "notice": None,
 			"lastMapPick": None, "aiMode": savedEngine.get("aiMode", agents.CLOUD)}.items():

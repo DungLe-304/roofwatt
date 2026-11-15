@@ -8,11 +8,16 @@ __pycache__/
 venv/
 .ipynb_checkpoints/
 
-# Local cache / data
-cache/
+# Local cache / data (cache/pvwatts/ is committed: public PVWatts results, so a fresh host need not
+# re-query all 171 Houston sizes at once and hit 429; Vexcel images and UI state stay local)
+cache/*
+!cache/pvwatts/
 *.sqlite
 .DS_Store
 
 # Streamlit agent skills (environment-specific symlinks into .venv)
 .agents/skills/developing-with-streamlit
 .claude/skills/developing-with-streamlit
+
+# Streamlit secrets
+.streamlit/secrets.toml
