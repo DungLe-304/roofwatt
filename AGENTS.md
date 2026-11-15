@@ -128,6 +128,9 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   A saved Local choice (`cache/ui/engine.json`, shared by every viewer) now opens on Cloud when Ollama is not running.
 - 120 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
+- README rewritten for the Devpost submission (06bc359): live demo link, tracks, features, architecture and
+  formulas, sourced assumptions and limits, setup with keys and Cloud/Local engines, deploy, structure, team,
+  credits. Its numbers (185 offices / 171 ranked, 120 tests, `config.py` values) must be kept in sync if they change.
 
 ## Known Issues
 - Rotate the NLR (PVWatts) key: it was printed in a session log before the redaction fix.
@@ -155,7 +158,7 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 
 ## Immediate Next Steps
 0. Deployed app: no full agent run tested yet (Gemini quota, empty-reply issue below). Secrets are set in the
-   Community Cloud app settings; keys never go in the repo.
+   Community Cloud app settings; keys never go in the repo. The README leads with this link, so judges will try it.
 1. Rotate the NLR key. Open Results once when Overpass answers, so the 2D footprints are cached for the demo.
 2. On the demo machine: `python tools/prefetch_images.py` and `ollama pull qwen3.5:4b`.
 3. Fix the empty Gemini reply (raise the output cap or limit Gemini thinking), then one Gemini demo run after the
