@@ -28,6 +28,7 @@ def isolated(tmp_path, monkeypatch):
 	st.cache_resource.clear()
 	st.cache_data.clear()
 	monkeypatch.setenv("ROOFWATT_LAST_RUN", str(tmp_path / "last_run.json"))
+	monkeypatch.setenv("ROOFWATT_ENGINE", str(tmp_path / "engine.json"))
 	monkeypatch.setattr(data.buildings, "loadBuildingGeometry", lambda positions: {"buildings": [], "warning": ""})
 	monkeypatch.setattr(agent.agent, "hasGeminiKey", lambda: True)
 	monkeypatch.setattr(agent.agent, "listLocalModels", lambda: (["llama3.2:3b", "qwen3.5:4b"], None))
@@ -240,6 +241,19 @@ def test_engine_choice_survives_page_switches(monkeypatch, tmp_path):
 		assert at.segmented_control(key="aiMode").value == "local", page
 		assert at.selectbox(key="localModel").value == "llama3.2:3b", page
 		assert sidebarModel(at) == ["Model: Ollama · llama3.2:3b (local)"], page
+
+
+def test_engine_choice_survives_a_reload(monkeypatch, tmp_path):
+	# A browser reload starts a new session, which reset the switch to Cloud; the last choice is now saved.
+	fake = FakeAgent(roof_png(tmp_path))
+	at = start(monkeypatch, fake)
+	at.segmented_control(key="aiMode").set_value("local").run()
+	at.selectbox(key="localModel").select("llama3.2:3b").run()
+	reloaded = start(monkeypatch, fake)  # a new AppTest is a new session
+	assert reloaded.segmented_control(key="aiMode").value == "local"
+	assert reloaded.selectbox(key="localModel").value == "llama3.2:3b"
+	reloaded.segmented_control(key="aiMode").set_value("cloud").run()
+	assert start(monkeypatch, fake).segmented_control(key="aiMode").value == "cloud"
 
 
 def test_local_mode_without_ollama_disables_run(monkeypatch):

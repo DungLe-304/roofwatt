@@ -111,8 +111,9 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - Local engine works with `qwen3.5:4b` (Ollama): the demo query runs in ~90 s (rankBuildings, getBuilding,
   getRoofImage) and drafts a letter. The Local engine gets `localRules` on top of `systemPrompt` (no arithmetic,
   fixed calls, table + `## Proposal letter`, no file tools); numbers in two runs matched the tools exactly.
-- Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`).
-- 111 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
+- Sidebar engine switch and local model picker keep their value across pages (`persist_state="session"`) and
+  across reloads / new tabs (last choice saved in `cache/ui/engine.json`, shared by every browser on this server).
+- 112 tests pass, including native/custom palette consistency. Corrected stale status expectations and Windows
   path escaping in test fixtures. `retro-ui` (Windows 98 restyle) exists only as a local branch.
 
 ## Known Issues

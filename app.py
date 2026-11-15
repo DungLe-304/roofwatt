@@ -27,6 +27,8 @@ appRoot = Path(__file__).resolve().parent
 pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
 # Last successful run, shown if the agent fails (offline demo fallback). cache/ is gitignored; tests point this elsewhere.
 lastRunPath = Path(os.environ.get("ROOFWATT_LAST_RUN") or appRoot / "cache" / "ui" / "last_run.json")
+# Last AI engine choice: a browser reload starts a new session, which would otherwise reset the switch to Cloud.
+enginePath = Path(os.environ.get("ROOFWATT_ENGINE") or appRoot / "cache" / "ui" / "engine.json")
 CITY_LABELS = {"Houston": "Houston, TX", "Los Angeles": "Los Angeles, CA"}
 
 st.set_page_config(page_title = "RoofWatt", page_icon = str(pageIconPath), layout = "wide", initial_sidebar_state = "expanded",
@@ -177,6 +179,25 @@ def loadSavedRun():
 		return json.loads(lastRunPath.read_text())
 	except (OSError, ValueError):
 		return None
+
+
+def loadEngineChoice():
+	"""{"aiMode", "localModel"} saved by the last session; {} when there is none."""
+	try:
+		saved = json.loads(enginePath.read_text())
+	except (OSError, ValueError):
+		return {}
+	return saved if isinstance(saved, dict) and saved.get("aiMode") in (agents.CLOUD, agents.LOCAL) else {}
+
+
+def saveEngineChoice(saved):
+	choice = {"aiMode": st.session_state.aiMode, "localModel": st.session_state.get("localModel") or saved.get("localModel")}
+	if choice != saved:
+		try:
+			enginePath.parent.mkdir(parents = True, exist_ok = True)
+			enginePath.write_text(json.dumps(choice))
+		except OSError:
+			pass  # remembering the choice is optional
 
 
 def runAgent(agent, requestText, history):
@@ -415,9 +436,12 @@ def assumptionsPage():
 
 
 if __name__ == "__main__":
+	savedEngine = loadEngineChoice()
 	for name, default in {"run": None, "chatMessages": [], "selectedId": None, "assumptions": None, "notice": None,
-			"lastMapPick": None, "aiMode": agents.CLOUD}.items():
+			"lastMapPick": None, "aiMode": savedEngine.get("aiMode", agents.CLOUD)}.items():
 		st.session_state.setdefault(name, default)
+	if savedEngine.get("localModel"):
+		st.session_state.setdefault("localModel", savedEngine["localModel"])
 	if st.session_state.pop("switchToLocal", False):
 		st.session_state.aiMode = st.session_state.lastMode = agents.LOCAL  # automatic switch, not the viewer's pick
 		st.session_state.fallbackNote = "Switched from Cloud: the Gemini free quota is used up."
@@ -444,6 +468,7 @@ if __name__ == "__main__":
 
 	with st.sidebar:
 		modelSlot, ENGINE_PROBLEM = sidebar(PAGES, CITY_LABELS.get(city, "Houston, TX"), engine)
+	saveEngineChoice(savedEngine)
 
 	try:
 		AGENT, AGENT_ERROR = (None, ENGINE_PROBLEM) if ENGINE_PROBLEM else (loadAgent(mode, chosenLocalModel()), None)
