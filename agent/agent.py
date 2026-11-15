@@ -55,16 +55,17 @@ class QuotaFallbackAgent:
 		self.localAgent = localAgent
 		self.useLocalModel = False
 
-	def invoke(self, state):
+	def invoke(self, state, config = None):
+		# config is passed through unchanged (the UI uses it for callbacks that show tool calls live)
 		if self.useLocalModel:
-			return self.localAgent.invoke(state)
+			return self.localAgent.invoke(state, config)
 		try:
-			return self.primaryAgent.invoke(state)
+			return self.primaryAgent.invoke(state, config)
 		except Exception as error:
 			if not isResourceExhausted(error):
 				raise
 			self.useLocalModel = True
-			return self.localAgent.invoke(state)
+			return self.localAgent.invoke(state, config)
 
 
 def createRoofWattAgent(pingGemini = False):

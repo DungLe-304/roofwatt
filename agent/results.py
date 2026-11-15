@@ -1,6 +1,7 @@
 """Read tool results (roof images, building ranking) back out of an agent run's message history (for the UI)."""
 
 import json
+import re
 from pathlib import Path
 
 
@@ -54,6 +55,45 @@ def _shortResult(name: str, content) -> tuple[bool, str]:
 	return True, "ok"
 
 
+def _number(text: str, field: str) -> int | None:
+	"""A count from tool output that is JSON ("field": 3) or a pydantic repr (field=3)."""
+	match = re.search(rf'["\']?{field}["\']?\s*[:=]\s*(\d+)', text)
+	return int(match.group(1)) if match else None
+
+
+def toolSummary(name: str, content, args: dict | None = None) -> tuple[bool, str]:
+	"""(ok, one human-readable line) for a tool result, for the live and the saved agent trace."""
+	text = str(getattr(content, "content", content) or "")
+	try:
+		result = json.loads(text)
+	except (TypeError, ValueError):
+		result = None
+	if isinstance(result, dict) and result.get("error"):
+		return _shortResult(name, text)
+	if name == "rankBuildings" and isinstance(result, dict) and "ranked" in result:
+		kind = str(result.get("propertyType", "")).lower()
+		notes = [f"{result.get('totalMatches')} {kind} buildings in {result.get('city')} screened".replace("  ", " "),
+			f"{result.get('rankedCount')} ranked"]
+		tooSmall = (result.get("excluded") or {}).get("belowMinimumSize")
+		if tooSmall:
+			notes.append(f"{tooSmall} too small")
+		return True, " · ".join(notes) + f" → top {len(result['ranked'])} kept"
+	if name == "searchBuildings":
+		found, total = len(re.findall(r"buildingId", text)), _number(text, "totalMatches")
+		return True, f"{found} buildings found" + (f" (of {total} matches)" if total is not None else "")
+	if name == "getBuilding":
+		match = re.search(r'["\']?address["\']?\s*[:=]\s*["\']([^"\']+)', text)
+		return True, f"details loaded: {match.group(1)}" if match else "details loaded"
+	if name == "write_todos":
+		todos = (args or {}).get("todos") or []
+		return True, f"planned {len(todos)} step{'s' if len(todos) != 1 else ''}"
+	if name == "computeFinancials" and isinstance(result, dict) and result.get("simplePaybackYr") is not None:
+		return True, f"payback {result['simplePaybackYr']:.2f} yr · ${result.get('annualSavingsUsd', 0):,.0f}/yr savings"
+	if name == "getRoofImage" and isinstance(result, dict) and result.get("imagePath"):
+		return True, "aerial roof image ready"
+	return _shortResult(name, text)
+
+
 MAX_ARGS_CHARS = 160  # deepagents' write_file/task args can hold whole documents
 
 
@@ -70,5 +110,6 @@ def toolTrace(messages) -> list[dict]:
 				step["todos"] = [str(todo.get("content", "")) for todo in args.get("todos", []) if isinstance(todo, dict)]
 			reply = results.get(toolCall.get("id"))
 			step["ok"], step["result"] = _shortResult(name, reply.content) if reply is not None else (True, "no result")
+			step["summary"] = toolSummary(name, reply.content, args)[1] if reply is not None else "no result"
 			steps.append(step)
 	return steps

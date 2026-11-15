@@ -73,7 +73,10 @@ def rankingDeck(rows: list[dict], *, buildings = None, queryDate = None, city = 
 		"position": [row["lon"], row["lat"]],
 		"label": str(row["rank"]),
 		"name": _name(row),
-		"color": COLOUR[row["rank"] - 1] if 1 <= row["rank"] <= len(COLOUR) else [128, 128, 128],
+		"color": colors[row["rank"] - 1] if 1 <= row["rank"] <= len(colors) else NO_RANK_COLOR,
+		"radius": round(11 + 13 * math.sqrt(max(row["systemKw"], 0) / maxKw), 1),  # area grows with kW
+		"lineWidth": 4 if str(row["buildingId"]) == str(selectedId) else 1.5,
+		"lineColor": NAVY if str(row["buildingId"]) == str(selectedId) else WHITE,
 		"paybackLabel": f"{row['simplePaybackYr']:.2f} yr",
 		"savingsLabel": f"${row['annualSavingsUsd']:,.0f}/yr",
 		"co2Label": f"{row['co2TonsPerYear']:,.0f} t CO₂/yr",

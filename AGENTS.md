@@ -29,16 +29,20 @@ solar economics: energy, savings, payback, CO₂ avoided, plus a drafted proposa
 
 ## Key Directories
 ```
-app.py              Streamlit UI: query box, tool trace, map, ranked table, detail, proposal
+app.py              Streamlit UI: query bar, live tool trace, KPIs, map + ranked cards, detail, proposal letter
 config.py           ALL assumptions, each with a source string (several still TODO)
 agent/agent.py      deepagents setup + system prompt + Gemini → Ollama quota fallback
 agent/tools.py      tool wrappers exposed to the agent
 data/costar_client.py  CoStar building search/details
 data/imagery.py     Vexcel aerial imagery (Matterport stretch)
 data/cache.py       response cache
-ui/ranking.py       ranked table + pydeck map for a rankBuildings result (rendered in app.py)
-ui/detail.py        detail panel for the selected ranked row (roof image + metrics with source tooltips)
-ui/trace.py         collapsible "Agent steps" list of tool calls
+ui/components.py    page blocks: header, query bar, empty state, KPI row, ranked cards, proposal, sidebars
+ui/theme.py         brand colors + custom CSS (theme itself in .streamlit/config.toml)
+ui/ranking.py       pydeck map (light, size ~ kW, Khoa's green→yellow→red rank gradient) + table
+ui/detail.py        detail panel for the selected building (roof image + metrics with source tooltips)
+ui/trace.py         live tool trace (LangChain callback) + "How the agent got here" expander
+ui/whatif.py        sidebar what-if recalculation of the shown rows (models.finance, no API calls)
+ui/proposal.py      splits the drafted owner letter out of the agent's answer
 models/schemas.py   Building, RoofResult, SolarResult, FinanceResult dataclasses
 models/roof.py      usable roof area (tier 1: footprint × USABLE_FACTOR)
 models/solar.py     PVWatts client (cache + 429 handling)
@@ -47,7 +51,7 @@ tests/              pytest (test_finance.py)
 docs/PROJECT_PLAN.md   full plan, data contracts, calc model, agent design
 index.md, schemas/, models/*.md, tools/expand_records.py   CoStar data kit docs (data in data/*.jsonl via Git LFS)
 assets/             app icon
-design-system/roofwatt/MASTER.md  UI design system (colors, type, spacing); read before UI work
+design-system/roofwatt/MASTER.md  old dark/green design system; superseded by the brand palette in ui/theme.py
 .streamlit/config.toml  Streamlit theme derived from MASTER.md
 ```
 
@@ -177,6 +181,18 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
   formula with `config` values + `config.SOURCES` citation (ITC 2027-12-31 caveat on net cost), CoStar sqft/stories/
   year. Images already in the detail panel are not repeated below. Trace args capped at 160 chars. Clicks verified in headless Chrome. 77 tests.
 
+- UI redesign (light brand theme: navy #13294B, orange #FF9F1C, blue #2F80ED, Inter with offline fallback):
+  header + query bar with demo query and example chips; live tool trace while the agent runs (worker thread +
+  `ui.trace.LiveTrace` callback, `QuotaFallbackAgent.invoke(state, config=None)` passes config through), then a
+  "How the agent got here" expander; 4 KPI cards (buildings screened, top-N kW, $/yr, t CO₂/yr); map (rank gradient, click a dot)
+  + ranked cards (Details selects); detail panel with metric tooltips citing config; proposal letter card with
+  Copy / Download .md; empty state (Scan → Analyze → Pitch). Sidebar (collapsed): what-if assumptions with
+  Recalculate (rate, flat $/W, ITC %, usable factor; recalculates the shown rows only, labeled what-if) and Khoa's
+  structured search form. Results live in `st.session_state.run`; the last good run is saved to
+  `cache/ui/last_run.json` (env `ROOFWATT_LAST_RUN` overrides) and shown if the agent fails. Chat history UI removed
+  (follow-ups still send history to the agent). PVWatts linearity checked live (350 vs 100 kW: exactly 3.5x).
+  Checked in headless Chrome with real Houston data; live trace checked through a real deepagents graph with a
+  fake model. 89 tests.
 - LLM fallback (Khoa, `f4e7734`, `a257785`): `agent/agent.py` `createRoofWattAgent(pingGemini)` builds two deepagents
   with the same prompt and tools, Gemini and local Ollama `ChatOllama(model="qwen3.5:4b")` (Qwen 3.5 4B on Khoa's
   machine), wrapped in `QuotaFallbackAgent`. An error containing `RESOURCE_EXHAUSTED` or `429` switches the session to
@@ -193,7 +209,9 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
 
 ## Modified Files
 - Khoa (fallback): `agent/agent.py`, `agent/tools.py` (docstring), `app.py`, `ui/ranking.py` (reformat), `pyproject.toml`, `uv.lock`
-- This session: `requirements.txt`, `app.py` (detail panel restored, model label), `tests/test_app.py`, `AGENTS.md`
+- UI redesign: `app.py`, `.streamlit/config.toml`, `ui/{components,theme,whatif,proposal}.py` (new),
+  `ui/{detail,ranking,trace}.py`, `agent/results.py` (`toolSummary`), `agent/agent.py` (config passthrough only),
+  `tests/test_{app,detail,ranking}.py`, `tests/test_{whatif,proposal,trace}.py` (new), `AGENTS.md`
 
 ## Known Issues
 - 3D map: cached nearby OSM closed-way footprints via Overpass (`data/buildings.py`); only tagged metric heights extruded, missing heights flat. Geometry is contextual, not verified CoStar boundaries. `ui/sunlight.py` computes solar noon on the saved city-local query date; `ui/ranking.py` supports tilted overview and zoom-17 property inspection. Added astral/tzdata, lock updated. Browser sunlight/shadows still need visual validation; existing rank-color test expects the old palette and fails against the user's gradient.
@@ -212,9 +230,11 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
     Not installed on Tony's machine.
   - Not yet checked: whether a 4B model calls the tools reliably and keeps every number from tool output.
   - The startup ping costs 1 Gemini request each time the agent is created (`st.cache_resource` makes that once per server).
-- `app.py` UI (plan §6 step 9) has everything except a proposal panel: the pitch is the agent's chat text. The map
-  does not highlight the selected row. Tool trace is unit-tested on LangChain message shapes; not yet seen live.
-  Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background.
+- Proposal panel splits the letter out of the agent's answer at a pitch/proposal/letter heading or a "Dear" line;
+  if the agent formats it differently the whole answer is shown as "Agent answer". Not yet seen with a live reply.
+- Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background. Inter loads from
+  Google Fonts; offline it falls back to the system sans-serif.
+- `streamlit-hotkeys` is no longer used by `app.py` (still in requirements).
 - Roof image frame uses the tier-1 footprint (sqft / stories), which undershoots wide low buildings (e.g. 362982
   spills past the frame edges). `cache/` is gitignored: run `python tools/prefetch_images.py` on the demo machine.
 - CoStar extract has no roof footprint (tier 1 uses sqft / stories).
@@ -225,5 +245,6 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
 ## Immediate Next Steps
 1. On the demo machine: `ollama pull qwen3.5:4b`, run `python tools/prefetch_images.py`, then run the demo query
    on both Gemini and Ollama. Check that Qwen calls `rankBuildings` and that the "Agent steps" trace looks right.
-2. Optional: unit test for `QuotaFallbackAgent` (agent/agent.py, Khoa's file) with fake agents.
-3. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).
+2. Live demo once Gemini quota is back: check the live trace, the proposal split and the Copy button in a real browser.
+3. Optional: unit test for `QuotaFallbackAgent` (agent/agent.py, Khoa's file) with fake agents.
+4. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).

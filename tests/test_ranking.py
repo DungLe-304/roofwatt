@@ -45,7 +45,7 @@ def test_deck_plots_only_rows_with_coordinates_and_highlights_rank_one():
 	spec = json.loads(rankingDeck(rows).to_json())
 	points = spec["layers"][0]["data"]
 	assert [point["buildingId"] for point in points] == ["240117"]
-	assert points[0]["color"] == [34, 197, 94]
+	assert points[0]["color"] == [0, 255, 0]  # rank 1: bright green (start of the rank gradient)
 	assert points[0]["paybackLabel"] == "10.93 yr"
 	assert spec["initialViewState"]["latitude"] == pytest.approx(29.71)
 
@@ -76,3 +76,13 @@ def test_view_fits_every_point_in_the_map_frame():
 		assert abs(lat - view.latitude) < half_height_deg
 		assert abs(lon - view.longitude) < half_width_deg
 	assert fitView([[-95.55, 29.71]], width_px=900, height_px=420).zoom == 13
+
+
+def test_rank_colors_run_from_green_through_yellow_to_red_and_cover_every_rank():
+	from ui.ranking import rankColors
+	for count in (1, 2, 3, 10, 20):
+		colors = rankColors(count)
+		assert len(colors) >= count and colors[0] == [0, 255, 0]
+	ten = rankColors(10)
+	assert ten[4] == [204, 255, 0] and ten[5] == [255, 255, 0] and ten[9] == [255, 51, 0]
+	assert rankColors(0) and rankColors(10_000)  # no division by zero, no zero step

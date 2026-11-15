@@ -1,10 +1,23 @@
-# Theme from design-system/roofwatt/MASTER.md (ui-ux-pro-max: Minimalism & Swiss, dark slate + status green).
-# primaryColor uses green-700 instead of the design system's #22C55E: Streamlit draws white text on
-# primary buttons, and white on #22C55E fails WCAG 4.5:1. System font keeps the demo working offline.
+# RoofWatt brand theme (colors from assets/roofwatt-logo.svg). Light theme for projector readability.
+# primaryColor is solar orange; buttons on it use navy text (ui/theme.py): white on #FF9F1C is only 2.0:1,
+# navy #13294B on #FF9F1C is 7.1:1. Inter loads from Google Fonts when online and falls back to the system
+# sans-serif offline, so the demo still works without internet.
 [theme]
-base = "dark"
-primaryColor = "#15803D"
-backgroundColor = "#0F172A"
-secondaryBackgroundColor = "#1B2336"
-textColor = "#F8FAFC"
-font = "sans serif"
+base = "light"
+primaryColor = "#FF9F1C"
+backgroundColor = "#F7F9FC"
+secondaryBackgroundColor = "#EEF3FA"
+textColor = "#13294B"
+linkColor = "#2F80ED"
+borderColor = "#DCE3EC"
+showWidgetBorder = true
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+baseFontSize = 17
+baseRadius = "12px"
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F9FC"
+
+[client]
+toolbarMode = "minimal"  # hide the Deploy button during the demo
