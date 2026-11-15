@@ -5,7 +5,7 @@ import streamlit.components.v1 as components
 import streamlit as st
 import streamlit_hotkeys as hotkeys
 
-from agent.agent import createRoofWattAgent
+from agent.agent import createRoofWattAgent, fallbackModelName
 from agent.results import rankingResult, roofImages, toolTrace
 from agent.tools import getRoofImage
 from config import loadSettings
@@ -38,6 +38,12 @@ st.caption("A commercial solar analysis agent for properties in Houston and Los 
 @st.cache_resource
 def loadAgent(checkGemini = True):
 	return createRoofWattAgent(pingGemini = checkGemini)
+
+def modelLabel(agent):
+	"""Which LLM the agent uses now: Gemini, or local Ollama once QuotaFallbackAgent has switched."""
+	if getattr(agent, "useLocalModel", False):
+		return f"Model: Ollama · {fallbackModelName} (local fallback, Gemini quota exhausted)"
+	return f"Model: Gemini · {loadSettings().modelName.split(':', 1)[-1]}"
 
 def extractText(content):
 	if isinstance(content, str):
@@ -102,12 +108,37 @@ def showRoofImages(images):
 		st.image(imagePath, caption = f"Aerial roof image, building {buildingId} (Vexcel Imaging)", width = 480)
 
 
+@st.cache_data(ttl = 300, show_spinner = False)
+def roofImageFor(buildingId):
+	"""getRoofImage, memoized so reruns (every click) do not refetch or retry a failing Vexcel call (60 s timeout)."""
+	return getRoofImage(buildingId)
+
+
+@st.cache_data(show_spinner = False)
+def lookupBuilding(buildingId):
+	try:
+		return getBuilding(buildingId)
+	except (LookupError, ValueError):
+		return None
+
+
 def showAssistantExtras(message, key):
-	if message.get("ranking"):
-		showRanking(message["ranking"], key = key)
-	showRoofImages(message.get("images", []))
+	"""Tool trace, ranked map/table, detail panel for the selected row, then any other roof images."""
 	if message.get("trace"):
 		showTrace(message["trace"])
+	images = message.get("images", [])
+	ranking = message.get("ranking")
+	if ranking:
+		rows = ranking["ranked"]
+		row = rows[selectedIndex(showRanking(ranking, key = key), len(rows))]
+		imagePath, imageError = dict(images).get(row["buildingId"]), None
+		if not imagePath:
+			imageResult = roofImageFor(row["buildingId"])
+			imagePath, imageError = imageResult.get("imagePath"), imageResult.get("error")
+		showDetail(row, imagePath, imageError, lookupBuilding(row["buildingId"]))
+		rankedIds = {ranked["buildingId"] for ranked in rows}
+		images = [image for image in images if image[0] not in rankedIds]  # already shown in the detail panel
+	showRoofImages(images)
 
 def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
 	filters = f"city={city}, propertyType={propertyType}, minimum gross area={minGrossArea} sq ft, limit={limit}"
@@ -135,9 +166,11 @@ def runAgentRequest(agent, requestText):
 				trace = toolTrace(result["messages"])
 				if ranking:
 					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
+				model = modelLabel(agent)  # read after invoke: a quota error during this request switches to Ollama
 				st.markdown(responseText)
+				st.caption(model)
 				showAssistantExtras({"images": images, "ranking": ranking, "trace": trace}, key = f"ranking-current-{len(st.session_state.chatMessages)}")
-				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking, "trace": trace})
+				st.session_state.chatMessages.append({"role": "assistant", "content": responseText, "images": images, "ranking": ranking, "trace": trace, "model": model})
 			except Exception as error:
 				errorMessage = str(error)
 				if "429" in errorMessage or "RESOURCE_EXHAUSTED" in errorMessage:
@@ -156,10 +189,13 @@ if __name__ == "__main__":
 	if st.sidebar.button("Clear conversation"):
 		st.session_state.chatMessages = []
 		st.rerun()
+	modelStatus = st.sidebar.empty()  # filled last, so it reflects a switch to Ollama during this run
 
 	for index, message in enumerate(st.session_state.chatMessages):
 		with st.chat_message(message["role"]):
 			st.markdown(message["content"])
+			if message.get("model"):
+				st.caption(message["model"])
 			if message["role"] == "assistant":
 				showAssistantExtras(message, key = f"ranking-{index}")
 
@@ -169,3 +205,5 @@ if __name__ == "__main__":
 		runAgentRequest(agent, buildSearchPrompt(city, propertyType, minGrossArea, int(limit), randomize, mode))
 	elif userPrompt:
 		runAgentRequest(agent, userPrompt)
+
+	modelStatus.caption(modelLabel(agent))

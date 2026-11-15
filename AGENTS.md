@@ -19,7 +19,7 @@ solar economics: energy, savings, payback, CO₂ avoided, plus a drafted proposa
 | Part | Choice |
 |---|---|
 | Language | Python 3.11+ (local: 3.13) |
-| Agent | LangChain `deepagents` + Gemini (`google_genai:gemini-4-hydrogen`, key `GOOGLE_API_KEY`) |
+| Agent | LangChain `deepagents` + Gemini (`google_genai:gemini-4-hydrogen`, key `GOOGLE_API_KEY`); fallback: local Ollama `qwen3.5:4b` when Gemini quota is exhausted |
 | Building data / imagery | CoStar hackathon toolkit (CoStar, Vexcel; Matterport stretch). API shapes are **unverified placeholders** |
 | Solar energy | NREL PVWatts v8 API |
 | Images | Pillow / OpenCV (stretch: Segment Anything) |
@@ -31,7 +31,7 @@ solar economics: energy, savings, payback, CO₂ avoided, plus a drafted proposa
 ```
 app.py              Streamlit UI: query box, tool trace, map, ranked table, detail, proposal
 config.py           ALL assumptions, each with a source string (several still TODO)
-agent/agent.py      deepagents setup + system prompt
+agent/agent.py      deepagents setup + system prompt + Gemini → Ollama quota fallback
 agent/tools.py      tool wrappers exposed to the agent
 data/costar_client.py  CoStar building search/details
 data/imagery.py     Vexcel aerial imagery (Matterport stretch)
@@ -93,7 +93,8 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 Claude Code (Opus 5.5) — 2026-11-14
 
 ## Current Objective
-Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemini quota. Next: imagery, UI.
+Agent + chat UI answer the demo query over all Houston offices. Gemini quota is covered by a local Ollama
+fallback (Khoa); verify the fallback end-to-end on the demo machine.
 
 ## Completed
 - Step 1: scaffold (`004236f`). `AGENTS.md` + `docs/PROJECT_PLAN.md` (`7797fba`). Project plugins (`77e2b12`):
@@ -176,9 +177,23 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
   formula with `config` values + `config.SOURCES` citation (ITC 2027-12-31 caveat on net cost), CoStar sqft/stories/
   year. Images already in the detail panel are not repeated below. Trace args capped at 160 chars. Clicks verified in headless Chrome. 77 tests.
 
+- LLM fallback (Khoa, `f4e7734`, `a257785`): `agent/agent.py` `createRoofWattAgent(pingGemini)` builds two deepagents
+  with the same prompt and tools, Gemini and local Ollama `ChatOllama(model="qwen3.5:4b")` (Qwen 3.5 4B on Khoa's
+  machine), wrapped in `QuotaFallbackAgent`. An error containing `RESOURCE_EXHAUSTED` or `429` switches the session to
+  Ollama for good (other errors still raise). `app.py` `loadAgent(checkGemini=True)` pings Gemini once at startup
+  ("Reply with OK only."), so an exhausted key goes straight to Ollama; the sidebar checkbox was removed.
+  `langchain-ollama` added to `pyproject.toml`/`uv.lock`; `python-dotenv` is back (`agent.py` calls `load_dotenv()`).
+- After the fallback: `langchain-ollama` added to `requirements.txt`. `d5724ff` had dropped the detail panel
+  (`showDetail`, `roofImageFor`, `lookupBuilding`) from `app.py`; restored, Khoa's per-message trace kept.
+  `tests/test_app.py` fake factory accepts `pingGemini`. 77 tests pass (`9854c15`).
+- Active model in the UI: `app.py` `modelLabel(agent)` reads `QuotaFallbackAgent.useLocalModel` after each invoke
+  ("Model: Gemini · gemini-4-hydrogen" or "Model: Ollama · qwen3.5:4b (local fallback, Gemini quota exhausted)").
+  Shown as a caption under each reply (stored per message as `model`) and in the sidebar (placeholder filled at the
+  end of the run, so a mid-request switch shows). `tests/test_app.py` clears `st.cache_resource` per test. 78 tests.
+
 ## Modified Files
-- Latest session: `ui/detail.py`, `ui/trace.py` (new), `ui/ranking.py`, `agent/results.py`, `app.py`,
-  `config.py` (`SOURCES`), `tests/test_detail.py` (new), `tests/test_results.py`, `tests/test_app.py`, `AGENTS.md`
+- Khoa (fallback): `agent/agent.py`, `agent/tools.py` (docstring), `app.py`, `ui/ranking.py` (reformat), `pyproject.toml`, `uv.lock`
+- This session: `requirements.txt`, `app.py` (detail panel restored, model label), `tests/test_app.py`, `AGENTS.md`
 
 ## Known Issues
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
@@ -189,8 +204,13 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
 - MASTER.md suggests Google Fonts (Fira); not used, to keep the demo offline-safe.
 - Proposal letter omits the ITC caveat (placed in service by 2027-12-31). Pending decision: return a `caveats`
   list from the finance tools and require it in pitches.
-- **Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen`, exhausted 2026-11-14 ~15:45 ET (resets
-  ~03:00 ET Nov 15).** One demo query uses ~3-12 requests. Demo is blocked until billing is enabled or quota resets.
+- Gemini key is Free Tier: 20 requests/day for `gemini-4-hydrogen` (exhausted 2026-11-14 ~15:45 ET, resets ~03:00 ET
+  Nov 15); one demo query uses ~3-12 requests. The Ollama fallback keeps the demo running, but:
+  - Ollama must be running on the demo machine (default `localhost:11434`) with `ollama pull qwen3.5:4b` done;
+    the code has no host setting, so it only works on a machine that runs Ollama itself (Khoa's laptop).
+    Not installed on Tony's machine.
+  - Not yet checked: whether a 4B model calls the tools reliably and keeps every number from tool output.
+  - The startup ping costs 1 Gemini request each time the agent is created (`st.cache_resource` makes that once per server).
 - `app.py` UI (plan §6 step 9) has everything except a proposal panel: the pitch is the agent's chat text. The map
   does not highlight the selected row. Tool trace is unit-tested on LangChain message shapes; not yet seen live.
   Map tiles come from CARTO (needs internet); offline, markers still draw on a blank background.
@@ -202,7 +222,7 @@ Agent + chat UI answer the demo query over all Houston offices. Blocked by Gemin
   CoStar data terms before submission. Cloning needs `git lfs`.
 
 ## Immediate Next Steps
-1. Gemini quota: enable billing on the Google AI project (or wait for reset) before any demo run.
-2. Run `python tools/prefetch_images.py` on the demo machine; live demo once Gemini quota resets.
-3. Live end-to-end demo query once quota is back: check the "Agent steps" trace with real deepagents messages.
-4. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).
+1. On the demo machine: `ollama pull qwen3.5:4b`, run `python tools/prefetch_images.py`, then run the demo query
+   on both Gemini and Ollama. Check that Qwen calls `rankBuildings` and that the "Agent steps" trace looks right.
+2. Optional: unit test for `QuotaFallbackAgent` (agent/agent.py, Khoa's file) with fake agents.
+3. ITC `caveats` in finance tool output so the pitch states them (pending decision; the UI tooltip already does).
