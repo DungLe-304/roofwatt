@@ -90,7 +90,7 @@ list touched files, record issues, and rewrite `Immediate Next Steps`. Keep Part
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Opus 5.5) — 2026-11-14
+Codex - 2026-11-14
 
 ## Current Objective
 Agent + chat UI answer the demo query over all Houston offices. Gemini quota is covered by a local Ollama
@@ -196,6 +196,7 @@ fallback (Khoa); verify the fallback end-to-end on the demo machine.
 - This session: `requirements.txt`, `app.py` (detail panel restored, model label), `tests/test_app.py`, `AGENTS.md`
 
 ## Known Issues
+- 3D map: cached nearby OSM closed-way footprints via Overpass (`data/buildings.py`); only tagged metric heights extruded, missing heights flat. Geometry is contextual, not verified CoStar boundaries. `ui/sunlight.py` computes solar noon on the saved city-local query date; `ui/ranking.py` supports tilted overview and zoom-17 property inspection. Added astral/tzdata, lock updated. Browser sunlight/shadows still need visual validation; existing rank-color test expects the old palette and fails against the user's gradient.
 - `config.py` caveats: ITC 30% requires placed-in-service by 2027-12-31 (OBBBA) and < 1 MW AC or PWA;
   EIA rate is an all-in average (incl. demand charges); eGRID uses total-output rate, not marginal.
 - PVWatts cache lives in `models/solar.py`; `data/cache.py` (CoStar/Vexcel) may absorb it later.

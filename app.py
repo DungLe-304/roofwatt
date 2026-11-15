@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import streamlit.components.v1 as components
@@ -13,6 +14,7 @@ from data.costar_client import CostarClient, getBuilding
 from ui.detail import selectedIndex, showDetail
 from ui.ranking import addCoordinates, showRanking
 from ui.trace import showTrace
+from ui.sunlight import queryDateFor
 
 appRoot = Path(__file__).resolve().parent
 pageIconPath = appRoot / "assets" / "roofwatt-logo-square.svg"
@@ -151,6 +153,7 @@ def buildSearchPrompt(city, propertyType, minGrossArea, limit, randomize, mode):
 
 
 def runAgentRequest(agent, requestText):
+	submittedAt = datetime.now(timezone.utc).isoformat()
 	st.session_state.chatMessages.append({"role": "user", "content": requestText})
 	with st.chat_message("user"):
 		st.markdown(requestText)
@@ -165,7 +168,7 @@ def runAgentRequest(agent, requestText):
 				ranking = rankingResult(result["messages"])
 				trace = toolTrace(result["messages"])
 				if ranking:
-					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords())}
+					ranking = ranking | {"ranked": addCoordinates(ranking["ranked"], CostarClient().iterRecords()), "queryDate": queryDateFor(ranking["city"], submittedAt)}
 				model = modelLabel(agent)  # read after invoke: a quota error during this request switches to Ollama
 				st.markdown(responseText)
 				st.caption(model)

@@ -157,7 +157,7 @@ def rankBuildings(city: str, propertyType: str = "Office", minSqft: float = 0, l
 		else:
 			result["simplePaybackYr"] = round(result["simplePaybackYr"], 2)
 			rows.append({"address": building.address} | {key: value for key, value in result.items() if key != "belowMinimumSize"})
-	rows.sort(key=lambda row: (row["simplePaybackYr"], -row["co2TonsPerYear"]))
+	rows.sort(key = lambda row: (row["simplePaybackYr"], -row["co2TonsPerYear"]))
 	for index, row in enumerate(rows):
 		tied = index > 0 and row["simplePaybackYr"] == rows[index - 1]["simplePaybackYr"]
 		rows[index] = {"rank": rows[index - 1]["rank"] if tied else index + 1} | row

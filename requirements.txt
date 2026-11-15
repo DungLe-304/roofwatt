@@ -1,4 +1,6 @@
 deepagents
+astral>=3.2,<4
+tzdata>=2025.2
 langchain
 langchain-google-genai
 langchain-ollama

@@ -5,6 +5,9 @@ import math
 import pandas as pd
 import pydeck as pdk
 
+from data.buildings import loadBuildingGeometry
+from ui.sunlight import solarNoon, sunlightEffects
+
 LABEL_COLOR = [15, 23, 42]  # design-system "on accent" #0F172A
 MAP_HEIGHT_PX = 420
 MAP_MIN_WIDTH_PX = 700  # narrowest chat column we expect; the view is fitted to this so wider screens only add margin
@@ -58,10 +61,12 @@ def fitView(positions: list[list[float]], *, width_px: float, height_px: float, 
 	return pdk.ViewState(latitude = lat, longitude = lon, zoom = round(min(zooms), 2))
 
 
-def rankingDeck(rows: list[dict]) -> pdk.Deck | None:
+def rankingDeck(rows: list[dict], *, buildings = None, queryDate = None, city = "Houston", focusRow = None) -> pdk.Deck | None:
 	"""Map of the ranked buildings (rank 1 highlighted), or None when no row has coordinates."""
-	TOP_HALF_COLOUR = [[i, 255, 0] for i in range(0, 255, math.floor(255 / (len(rows) / 2)))]  # gradient from bright green to yellow
-	BOTTOM_HALF_COLOUR = [[255, 255 - i, 0] for i in range(0, 255, math.floor(255 / (len(rows) / 2)))]  # gradient from yellow to red
+	if not rows:
+		return None
+	TOP_HALF_COLOUR = [[i, 255, 0] for i in range(0, 255, max(1, math.floor(255 / (len(rows) / 2))))]  # gradient from bright green to yellow
+	BOTTOM_HALF_COLOUR = [[255, 255 - i, 0] for i in range(0, 255, max(1, math.floor(255 / (len(rows) / 2))))]  # gradient from yellow to red
 	COLOUR = TOP_HALF_COLOUR + BOTTOM_HALF_COLOUR
 	points = [{
 		"buildingId": str(row["buildingId"]),
@@ -77,13 +82,30 @@ def rankingDeck(rows: list[dict]) -> pdk.Deck | None:
 	if not points:
 		return None
 	view = fitView([point["position"] for point in points], width_px = MAP_MIN_WIDTH_PX, height_px = MAP_HEIGHT_PX)
+	view.pitch = 55
+	view.bearing = 0
+	if focusRow is not None and focusRow.get("lat") is not None and focusRow.get("lon") is not None:
+		view = pdk.ViewState(latitude = focusRow["lat"], longitude = focusRow["lon"], zoom = 17, pitch = 55, bearing = 0)
 	dots = pdk.Layer("ScatterplotLayer", points, get_position = "position", get_fill_color = "color", get_radius = 14,
 		radius_units = "'pixels'", stroked = True, get_line_color = [15, 23, 42], line_width_min_pixels = 2, pickable = True)
 	labels = pdk.Layer("TextLayer", points, get_position = "position", get_text = "label", get_color = LABEL_COLOR,
 		get_size = 14, get_text_anchor =  "'middle'", get_alignment_baseline = "'center'", font_weight = 700)
 	tooltip = {"html": "<b>#{label} {name}</b><br/>Payback {paybackLabel}<br/>{savingsLabel} · {systemLabel}<br/>{co2Label}",
 		"style": {"backgroundColor": "#1B2336", "color": "#F8FAFC", "fontSize": "13px"}}
-	return pdk.Deck(layers=[dots, labels], initial_view_state = view, map_provider = "carto", map_style="dark", tooltip = tooltip)
+	layers = []
+	if buildings:
+		layers.append(pdk.Layer("PolygonLayer", buildings, id = "osm-buildings", get_polygon = "footprint", get_elevation = "heightM", extruded = True, filled = True, stroked = False, get_fill_color = [148, 163, 184], material = True, pickable = False))
+		# A deck.gl polygon can receive shadows; the basemap itself cannot.
+		vertices = [vertex for building in buildings for vertex in building["footprint"]]
+		west, east = min(p[0] for p in vertices) - 0.001, max(p[0] for p in vertices) + 0.001
+		south, north = min(p[1] for p in vertices) - 0.001, max(p[1] for p in vertices) + 0.001
+		layers.insert(0, pdk.Layer("PolygonLayer", [{"polygon": [[west, south], [east, south], [east, north], [west, north]]}], id = "shadow-ground", get_polygon = "polygon", get_fill_color = [235, 238, 240, 100], stroked = False, pickable = False))
+	layers.extend([dots, labels])
+	effects = []
+	if queryDate:
+		sunTime = solarNoon(view.latitude, view.longitude, queryDate, city)
+		effects = sunlightEffects(int(sunTime.timestamp() * 1000))
+	return pdk.Deck(layers = layers, effects = effects, initial_view_state = view, map_provider = "carto", map_style = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", tooltip = tooltip)
 
 
 def summaryText(result: dict) -> str:
@@ -107,9 +129,25 @@ def showRanking(result: dict, *, key: str):
 	import streamlit as st
 
 	st.caption(summaryText(result))
-	deck = rankingDeck(result["ranked"])
+	rows = result["ranked"]
+	validRows = [row for row in rows if row.get("lat") is not None and row.get("lon") is not None]
+	@st.cache_data(ttl = 300, show_spinner = False)
+	def cachedGeometry(positions):
+		return loadBuildingGeometry(positions)
+	geometry = cachedGeometry(tuple((row["lon"], row["lat"]) for row in validRows))
+	if geometry["warning"]:
+		st.caption(geometry["warning"])
+	options = [None] + list(range(len(validRows)))
+	focusIndex = st.selectbox("3D building view", options, format_func = lambda index: "All results" if index is None else _name(validRows[index]), key = f"{key}-focus")
+	focusRow = None if focusIndex is None else validRows[focusIndex]
+	deck = rankingDeck(rows, buildings = geometry["buildings"], queryDate = result.get("queryDate"), city = result["city"], focusRow = focusRow)
 	if deck is not None:
 		st.pydeck_chart(deck, height=MAP_HEIGHT_PX)
+		if result.get("queryDate"):
+			sunTime = solarNoon(deck.initial_view_state.latitude, deck.initial_view_state.longitude, result["queryDate"], result["city"])
+			st.caption(f"Sun position at solar noon on {result['queryDate']}: {sunTime:%H:%M %Z}. Visual simulation; weather and energy calculations are unchanged.")
+		knownHeights = sum(building["heightM"] > 0 for building in geometry["buildings"])
+		st.caption(f"© OpenStreetMap contributors (ODbL): {len(geometry['buildings'])} nearby footprints, {knownHeights} with tagged heights; unknown heights shown flat. Nearby footprints are not verified CoStar property boundaries. Select a property above to inspect in 3D.")
 	number = st.column_config.NumberColumn
 	st.caption("Select a row to see that building's roof and numbers below.")
 	return st.dataframe(rankingTable(result["ranked"]), hide_index=True, width="stretch", key=key,
