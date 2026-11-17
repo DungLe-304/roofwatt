@@ -20,7 +20,7 @@ RoofWatt is an AI agent (HackPrinceton Fall 2026) that ranks Houston commercial 
 |---|---|
 | Language | Python 3.13 |
 | Agent | LangChain `deepagents`. AI engine switch: Cloud = Gemini `gemini-4-hydrogen` (`GOOGLE_API_KEY`), Local = any Ollama model (suggested `qwen3.5:4b`) |
-| Building data | CoStar hackathon extract, local JSONL via Git LFS (`data/*.jsonl`) |
+| Building data | CoStar hackathon extract, local JSONL via Git LFS (`costar-kit/data/*.jsonl`) |
 | Imagery | Vexcel ortho extract API (`VEXCEL_API_KEY`) |
 | Solar energy | NREL/NLR PVWatts v8 (`NLR_API_KEY`, sent as `X-Api-Key` header) |
 | UI | Streamlit 1.67 + pydeck |
@@ -34,9 +34,9 @@ config.py           every assumption with a source string (config.SOURCES) + Set
 agent/agent.py      system prompt; createAgent(cloud|local), listLocalModels, QuotaFallbackAgent (Khoa's file)
 agent/tools.py      tools the agent calls (rankBuildings, computeFinancials, getRoofImage, ...)
 agent/results.py    reads tool results out of agent messages (ranking, trace, roof images)
-data/costar_client.py  CoStar extract adapter (Khoa)
+data/costar_client.py  CoStar extract adapter (Khoa), reads costar-kit/
 data/imagery.py     Vexcel roof images · data/buildings.py: OSM footprints via Overpass (Khoa) · data/cache.py
-models/             schemas (data contracts), roof, solar (PVWatts), finance (pure functions)
+models/             schemas (data contracts), roof, solar (PVWatts), finance (pure functions); Python only
 ui/components.py    page blocks: sidebar + AI engine switch, query form, KPIs, ranked list, letter, assumptions
 ui/styles.py        the only custom CSS (works in light and dark); theme in .streamlit/config.toml
 ui/ranking.py       pydeck 2D map (best rank green through lowest rank red) · ui/sunlight.py: local query dates
@@ -44,7 +44,8 @@ ui/palette.py       Catppuccin Latte / Mocha tokens for custom surfaces and map 
 static/fonts/       CaskaydiaCove Nerd Font Mono (SIL OFL), served via [server] enableStaticServing
 ui/detail.py, ui/trace.py, ui/whatif.py, ui/proposal.py   Building page, agent steps, what-if, letter split
 tools/prefetch_images.py   fill cache/vexcel/ for the top 20 before a demo
-index.md, schemas/, models/*.md   CoStar data kit docs
+costar-kit/         CoStar data kit, layout kept as shipped: index.md, data/*.jsonl (LFS), CSVs, schemas/,
+                    models/*.md (dataset docs), tools/expand_records.py
 ```
 
 ## Commands
@@ -90,7 +91,7 @@ and rewrite `Immediate Next Steps`. Keep Part 2 short: state what is true now, n
 # Part 2 — Dynamic Handoff Ledger
 
 ## Last Active Agent
-Claude Code (Opus 5.5) - 2026-11-15 (`main` official; `master` paused)
+Claude Code (Opus 5.5) - 2026-11-17 (`main` official; `master` paused)
 
 ## Current Objective
 Demo-ready: the demo query works end-to-end in either AI engine, with results, 2D map, roof images and letter.
@@ -121,7 +122,7 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
   (starts at the last run's city, else Houston).
 - Streamlit Community Cloud prep: `uv.lock` (read first by Cloud; in sync, Python 3.13) installs the app;
   `cache/pvwatts/` is committed so a fresh host does not re-query PVWatts for all 171 sizes; the app stops with a
-  clear error if `data/commercial-property.jsonl` is only a Git LFS pointer. Keys go in the app's Secrets (root-level
+  clear error if `costar-kit/data/commercial-property.jsonl` is only a Git LFS pointer. Keys go in the app's Secrets (root-level
   TOML keys become environment variables). Vercel cannot host it (serverless, no long-lived Streamlit server).
 - Deployed: https://roofwatt.streamlit.app (Community Cloud, `main`). Checked over the websocket: the app loads,
   the CoStar LFS data is present, Cloud shows Gemini ACTIVE with Run enabled. Only Cloud works there (no Ollama).
@@ -131,6 +132,10 @@ Demo-ready: the demo query works end-to-end in either AI engine, with results, 2
 - README rewritten for the Devpost submission (06bc359): live demo link, tracks, features, architecture and
   formulas, sourced assumptions and limits, setup with keys and Cloud/Local engines, deploy, structure, team,
   credits. Its numbers (185 offices / 171 ranked, 120 tests, `config.py` values) must be kept in sync if they change.
+
+- Repo tidy (2026-11-17): the CoStar kit moved as one unit to `costar-kit/` (data/*.jsonl, CSVs, schemas/,
+  models/*.md docs, tools/expand_records.py), so `data/` and `models/` hold only Python. `CostarClient` and the
+  app's LFS check read `costar-kit/`. `tests/test_map_3d.py` renamed `tests/test_map.py` (the map is 2D).
 
 ## Known Issues
 - Rotate the NLR (PVWatts) key: it was printed in a session log before the redaction fix.

@@ -86,6 +86,7 @@ UI: pydeck map + ranked table + detail panel + proposal + tool trace
 roofwatt/
 ├── app.py                 # Streamlit UI
 ├── config.py              # ALL financial/physical assumptions, with source notes
+├── costar-kit/            # CoStar hackathon data kit: data/*.jsonl (Git LFS), schemas/, docs
 ├── agent/
 │   ├── agent.py           # deepagents setup + system prompt
 │   └── tools.py           # tool wrappers exposed to the agent

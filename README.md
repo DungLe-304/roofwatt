@@ -114,7 +114,7 @@ by about 20%. These are screening estimates, not a site assessment.
 
 ## Run it locally
 
-You need Python 3.13+ and [Git LFS](https://git-lfs.com) (the CoStar extract in `data/*.jsonl` is stored with LFS).
+You need Python 3.13+ and [Git LFS](https://git-lfs.com) (the CoStar extract in `costar-kit/data/*.jsonl` is stored with LFS).
 
 ```bash
 brew install git-lfs && git lfs install      # once, before cloning
@@ -176,13 +176,13 @@ TOML keys, which become environment variables. Only the Cloud engine works there
 app.py               Streamlit entry: Analyze, Results, Building, Proposal, Assumptions pages
 config.py            every assumption with its source, plus app settings
 agent/               system prompt, Cloud/Local engines, tools, reading tool results
-data/                CoStar extract and adapter, Vexcel imagery, OSM footprints, file cache
+data/                CoStar adapter, Vexcel imagery, OSM footprints, file cache
 models/              data contracts, roof, solar (PVWatts) and finance calculations
 ui/                  page components, map, what-if, letter, styles and palette
-tools/               prefetch_images.py, expand_records.py
+tools/               prefetch_images.py (fill the Vexcel image cache before a demo)
 tests/               pytest and Streamlit AppTest with fake agents
 docs/PROJECT_PLAN.md full project plan
-index.md, schemas/   CoStar data kit documentation
+costar-kit/          CoStar data kit: data/*.jsonl (Git LFS), CSVs, schemas/, docs (index.md, models/*.md)
 ```
 
 ## Tech stack

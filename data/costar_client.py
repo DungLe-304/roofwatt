@@ -1,6 +1,6 @@
 """Read the supplied CoStar extract; no hosted API or credentials required.
 
-Field and enum definitions: schemas/commercial-property.schema.json.
+Field and enum definitions: costar-kit/schemas/commercial-property.schema.json.
 Search matches primary-address city and state, not the broader research market.
 """
 
@@ -12,7 +12,7 @@ from pathlib import Path
 from models.schemas import Building, SearchBuildingsInput, SearchBuildingsResult
 
 
-rootPath = Path(__file__).resolve().parents[1]
+rootPath = Path(__file__).resolve().parents[1] / "costar-kit"  # the CoStar hackathon data kit
 supportedCities = {"houston": ("Houston", "TX"), "los angeles": ("Los Angeles", "CA"), "la": ("Los Angeles", "CA")}
 
 
